@@ -90,11 +90,17 @@ info "Creating EFI partition ($EFI_SIZE)..."
 parted -s "$DISK" mkpart ESP fat32 1MiB "$EFI_SIZE"
 parted -s "$DISK" set 1 esp on
 
+# Compute exact partition boundaries from EFI_SIZE and SWAP_SIZE
+EFI_MIB="${EFI_SIZE//[Mm]*/}"                      # numeric MiB value of EFI partition
+SWAP_MIB="$((${SWAP_SIZE//[Gg]*/} * 1024))"        # SWAP_SIZE converted to MiB
+SWAP_START="${EFI_MIB}MiB"                         # swap begins right after EFI
+SWAP_END="$((EFI_MIB + SWAP_MIB))MiB"             # swap ends at EFI + SWAP size
+
 info "Creating swap partition ($SWAP_SIZE)..."
-parted -s "$DISK" mkpart swap linux-swap "$EFI_SIZE" "$((${SWAP_SIZE//G/} + 1))G"
+parted -s "$DISK" mkpart swap linux-swap "$SWAP_START" "$SWAP_END"
 
 info "Creating root partition (remaining space)..."
-parted -s "$DISK" mkpart root ext4 "$((${SWAP_SIZE//G/} + 1))G" 100%
+parted -s "$DISK" mkpart root ext4 "$SWAP_END" 100%
 
 ok "Partition table written."
 parted -s "$DISK" print
@@ -167,7 +173,7 @@ ok "Timezone set."
 
 # ── Locale
 info "Configuring locale: ${LOCALE}"
-sed -i 's/#${LOCALE}/${LOCALE}/' /etc/locale.gen
+sed -i "s/#${LOCALE//./\\.}/${LOCALE}/" /etc/locale.gen
 locale-gen
 echo "LANG=${LOCALE}" > /etc/locale.conf
 echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
@@ -190,17 +196,11 @@ sed -i 's/^HOOKS=.*/HOOKS=(base udev autodetect modconf block filesystems keyboa
 mkinitcpio -P
 ok "initramfs built with amdgpu."
 
-# ── Root password
-echo
-info "Set ROOT password:"
-passwd
+# ── Root password (done outside heredoc — passwd needs an interactive TTY)
 
 # ── Create user
 info "Creating user: ${USERNAME}"
 useradd -mG wheel,audio,video,input,storage,games -s /bin/bash "${USERNAME}"
-echo
-info "Set password for ${USERNAME}:"
-passwd "${USERNAME}"
 
 # ── Sudo
 sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
@@ -228,6 +228,15 @@ ok "refind_linux.conf written."
 
 CHROOT
 
+# ── Set passwords interactively (passwd requires a real TTY, cannot run inside heredoc)
+echo
+info "Set ROOT password:"
+artix-chroot /mnt passwd
+
+echo
+info "Set password for ${USERNAME}:"
+artix-chroot /mnt passwd "${USERNAME}"
+
 # ── COPY SCRIPT 2 INTO NEW SYSTEM ────────────────────────────────────────────
 section "Staging script 2 for post-reboot"
 
@@ -246,6 +255,7 @@ fi
 # ── UNMOUNT & REBOOT ──────────────────────────────────────────────────────────
 section "Done — unmounting and rebooting"
 
+swapoff "$PART_SWAP"
 umount -R /mnt
 
 echo

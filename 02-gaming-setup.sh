@@ -62,16 +62,18 @@ CPU_LEVEL=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null \
 
 info "Detected: x86-64-v${CPU_LEVEL}"
 
-# Check for Zen 4/5 (znver4 support)
-if grep -q "znver4\|znver5" /proc/cpuinfo 2>/dev/null || \
-   gcc -Q --help=target 2>/dev/null | grep -q "znver4\|znver5"; then
-  CACHY_ARCH="znver4"
-  info "AMD Zen 4/5 detected — will use znver4 optimised packages"
+# Check for Zen 4/5 via CPU family/model in /proc/cpuinfo
+# Zen 4: family 25 (0x19), model >= 96 (0x60); Zen 5: family 26 (0x1a)
+CPU_FAMILY=$(grep -m1 "^cpu family" /proc/cpuinfo 2>/dev/null | awk '{print $NF}')
+CPU_MODEL=$(grep -m1 "^model[[:space:]]" /proc/cpuinfo 2>/dev/null | awk '{print $NF}')
+CPU_FAMILY="${CPU_FAMILY:-0}"
+CPU_MODEL="${CPU_MODEL:-0}"
+if { [[ "$CPU_FAMILY" -eq 25 ]] && [[ "$CPU_MODEL" -ge 96 ]]; } || \
+   [[ "$CPU_FAMILY" -eq 26 ]]; then
+  info "AMD Zen 4/5 detected — znver4 optimised packages available via CachyOS"
 elif [[ "$CPU_LEVEL" -ge 3 ]]; then
-  CACHY_ARCH="v${CPU_LEVEL}"
-  info "Will use x86-64-${CACHY_ARCH} optimised packages"
+  info "x86-64-v${CPU_LEVEL} CPU detected — optimised packages available via CachyOS"
 else
-  CACHY_ARCH=""
   warn "CPU is x86-64-v2 or lower — using base CachyOS repo only"
 fi
 
@@ -114,7 +116,10 @@ EOF
 ok "refind_linux.conf updated with CachyOS kernel entries."
 
 info "Verifying RDNA3 firmware blobs..."
-NAVI32_COUNT=$(ls /usr/lib/firmware/amdgpu/navi32*.bin 2>/dev/null | wc -l)
+shopt -s nullglob
+NAVI32_FILES=(/usr/lib/firmware/amdgpu/navi32*.bin)
+NAVI32_COUNT=${#NAVI32_FILES[@]}
+shopt -u nullglob
 if [[ "$NAVI32_COUNT" -gt 0 ]]; then
   ok "Found ${NAVI32_COUNT} navi32 firmware files."
 else
@@ -204,6 +209,7 @@ PROFILE_FILE="$HOME/.bash_profile"
 
 info "Writing AMD environment variables to ${PROFILE_FILE}..."
 
+if ! grep -q "AMD_VULKAN_ICD=RADV" "$PROFILE_FILE" 2>/dev/null; then
 cat >> "$PROFILE_FILE" <<'EOF'
 
 # ── AMD RX 7800 XT gaming environment ─────────────────────────────────────
@@ -224,6 +230,9 @@ if [[ -z "$WAYLAND_DISPLAY" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
   exec Hyprland
 fi
 EOF
+else
+  info "AMD environment block already present in ${PROFILE_FILE} — skipping."
+fi
 
 ok "Environment variables written to ${PROFILE_FILE}."
 
@@ -273,6 +282,7 @@ section "11 — AUR helper (paru)"
 if ! command -v paru &>/dev/null; then
   info "Installing paru (AUR helper)..."
   cd /tmp
+  rm -rf /tmp/paru-bin
   git clone https://aur.archlinux.org/paru-bin.git
   cd paru-bin
   makepkg -si --noconfirm
@@ -661,9 +671,11 @@ info "Installing corectrl from AUR..."
 paru -S --noconfirm corectrl
 
 info "Installing polkit rule for CoreCtrl (no-password GPU control)..."
-sudo cp /usr/share/polkit-1/rules.d/90-corectrl.rules \
-        /etc/polkit-1/rules.d/90-corectrl.rules 2>/dev/null || \
-sudo tee /etc/polkit-1/rules.d/90-corectrl.rules > /dev/null <<'EOF'
+if [[ -f /usr/share/polkit-1/rules.d/90-corectrl.rules ]]; then
+  sudo cp /usr/share/polkit-1/rules.d/90-corectrl.rules \
+          /etc/polkit-1/rules.d/90-corectrl.rules
+else
+  sudo tee /etc/polkit-1/rules.d/90-corectrl.rules > /dev/null <<'EOF'
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.corectrl.helper.init" ||
          action.id == "org.corectrl.helperkiller.init") &&
@@ -674,6 +686,7 @@ polkit.addRule(function(action, subject) {
     }
 });
 EOF
+fi
 
 ok "CoreCtrl installed with polkit rule."
 
