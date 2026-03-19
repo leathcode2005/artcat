@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AMD RX 7800 XT Gaming Setup — Artix Linux / dinit</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600&display=swap');
+
+  :root {
+    --bg:        #0a0b0f;
+    --surface:   #0f1117;
+    --card:      #13161f;
+    --border:    #1e2230;
+    --amd-red:   #e0352b;
+    --amd-orange:#f47320;
+    --accent:    #ff6030;
+    --dim:       #4a5068;
+    --muted:     #7a84a0;
+    --text:      #c8cedf;
+    --bright:    #e8edf8;
+    --code-bg:   #080a10;
+    --green:     #3ddc84;
+    --yellow:    #f5c842;
+    --cyan:      #30c8e0;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 17px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* — SCANLINE OVERLAY — */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,.08) 3px,
+      rgba(0,0,0,.08) 4px
+    );
+  }
+
+  /* — HEADER — */
+  header {
+    position: relative;
+    padding: 56px 48px 40px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 70% 60% at 10% 50%, rgba(224,53,43,.18) 0%, transparent 65%),
+      radial-gradient(ellipse 50% 80% at 90% 20%, rgba(244,115,32,.10) 0%, transparent 60%);
+  }
+  .header-inner { position: relative; z-index: 1; max-width: 960px; margin: auto; }
+
+  .badge {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .15em;
+    color: var(--amd-orange);
+    border: 1px solid var(--amd-orange);
+    padding: 3px 10px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-weight: 900;
+    font-size: clamp(24px, 5vw, 46px);
+    line-height: 1.1;
+    letter-spacing: .03em;
+    color: var(--bright);
+  }
+  h1 span.amd { color: var(--amd-red); }
+  h1 span.model { color: var(--amd-orange); }
+
+  .subtitle {
+    margin-top: 12px;
+    font-size: 15px;
+    color: var(--muted);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: .04em;
+  }
+
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 24px;
+    margin-top: 28px;
+  }
+  .meta-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-family: 'Share Tech Mono', monospace;
+    color: var(--muted);
+  }
+  .meta-item .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent); flex-shrink: 0;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  /* — LAYOUT — */
+  .wrapper { max-width: 960px; margin: 0 auto; padding: 0 32px 80px; position: relative; z-index: 1; }
+
+  /* — TOC — */
+  .toc {
+    margin: 40px 0 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amd-red);
+    padding: 24px 28px;
+  }
+  .toc-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 12px;
+    letter-spacing: .15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 5px 0; }
+  .toc a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 15px;
+    transition: color .2s;
+  }
+  .toc a:hover { color: var(--amd-orange); }
+  .toc a .num {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--dim);
+    margin-right: 6px;
+    font-size: 13px;
+  }
+
+  /* — SECTIONS — */
+  section {
+    margin-top: 52px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  h2 {
+    font-family: 'Orbitron', monospace;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--bright);
+    letter-spacing: .06em;
+    margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  h2 .sec-num {
+    font-size: 11px;
+    color: var(--amd-red);
+    border: 1px solid var(--amd-red);
+    padding: 2px 7px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  h3 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--cyan);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin: 28px 0 10px;
+  }
+
+  p { margin-bottom: 14px; }
+
+  /* — CALLOUT BOXES — */
+  .callout {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-left: 3px solid;
+    font-size: 15px;
+  }
+  .callout.warn  { background: rgba(245,200,66,.06); border-color: var(--yellow); }
+  .callout.info  { background: rgba(48,200,224,.06); border-color: var(--cyan); }
+  .callout.tip   { background: rgba(61,220,132,.06); border-color: var(--green); }
+  .callout.danger{ background: rgba(224,53,43,.07);  border-color: var(--amd-red); }
+
+  .callout-icon { font-size: 18px; flex-shrink: 0; margin-top: 2px; }
+  .callout-body strong {
+    display: block; margin-bottom: 4px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .callout.warn  .callout-body strong { color: var(--yellow); }
+  .callout.info  .callout-body strong { color: var(--cyan); }
+  .callout.tip   .callout-body strong { color: var(--green); }
+  .callout.danger .callout-body strong { color: var(--amd-red); }
+
+  /* — CODE BLOCKS — */
+  .code-block {
+    margin: 18px 0;
+    border: 1px solid var(--border);
+    background: var(--code-bg);
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 16px;
+    background: rgba(255,255,255,.03);
+    border-bottom: 1px solid var(--border);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+  .code-header .lang { color: var(--amd-orange); }
+  pre {
+    padding: 18px 20px;
+    overflow-x: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    color: #b0bcd0;
+  }
+  .c-cmd    { color: #30c8e0; }
+  .c-flag   { color: #f5c842; }
+  .c-path   { color: #3ddc84; }
+  .c-str    { color: #f0956a; }
+  .c-cmt    { color: #3d4560; font-style: italic; }
+  .c-var    { color: #c792ea; }
+  .c-key    { color: var(--amd-orange); }
+
+  /* — STEP CARDS — */
+  .steps { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+  .step {
+    display: flex; gap: 0;
+    position: relative;
+  }
+  .step-line {
+    display: flex; flex-direction: column; align-items: center;
+    flex-shrink: 0; width: 40px;
+  }
+  .step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2px solid var(--amd-red);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px; font-weight: bold;
+    color: var(--amd-red);
+    flex-shrink: 0;
+    box-shadow: 0 0 10px rgba(224,53,43,.25);
+  }
+  .step-connector {
+    flex: 1; width: 2px;
+    background: linear-gradient(to bottom, var(--amd-red), var(--border));
+    min-height: 20px;
+  }
+  .step:last-child .step-connector { display: none; }
+  .step-content {
+    flex: 1;
+    padding: 4px 0 28px 18px;
+  }
+  .step-content h4 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 600; font-size: 16px;
+    color: var(--bright);
+    margin-bottom: 8px;
+  }
+
+  /* — TABLE — */
+  .pkg-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  .pkg-table th {
+    background: var(--card);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+  .pkg-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(30,34,48,.7);
+    vertical-align: top;
+  }
+  .pkg-table tr:hover td { background: rgba(255,255,255,.02); }
+  .pkg-table code {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12.5px;
+    color: var(--amd-orange);
+    background: rgba(0,0,0,.3);
+    padding: 2px 6px;
+  }
+  .tag {
+    display: inline-block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; padding: 2px 7px;
+    border-radius: 2px;
+    letter-spacing: .08em;
+  }
+  .tag.req { background: rgba(224,53,43,.2); color: var(--amd-red); }
+  .tag.opt { background: rgba(61,220,132,.15); color: var(--green); }
+  .tag.rec { background: rgba(48,200,224,.15); color: var(--cyan); }
+
+  /* — FOOTER — */
+  footer {
+    position: relative; z-index: 1;
+    border-top: 1px solid var(--border);
+    padding: 28px 48px;
+    text-align: center;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: .08em;
+  }
+
+  /* — INLINE CODE — */
+  code {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--amd-orange);
+    background: rgba(244,115,32,.1);
+    padding: 1px 5px;
+    border: 1px solid rgba(244,115,32,.2);
+  }
+
+  ul, ol { padding-left: 22px; margin-bottom: 14px; }
+  li { margin: 5px 0; }
+
+  @media (max-width: 640px) {
+    header { padding: 32px 20px 28px; }
+    .wrapper { padding: 0 16px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="badge">hardware setup guide</div>
+    <h1>
+      <span class="amd">AMD</span> RX <span class="model">7800 XT</span><br>
+      Gaming on Artix Linux
+    </h1>
+    <p class="subtitle">// init system: dinit &nbsp;|&nbsp; RDNA3 · AMDGPU · Mesa · Vulkan · GameMode</p>
+    <div class="meta-row">
+      <div class="meta-item"><div class="dot"></div> Kernel 6.6+ LTS or 6.9+</div>
+      <div class="meta-item"><div class="dot"></div> Mesa 24.x</div>
+      <div class="meta-item"><div class="dot"></div> Artix Linux (dinit)</div>
+      <div class="meta-item"><div class="dot"></div> X11 or Wayland</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrapper">
+
+  <nav class="toc">
+    <div class="toc-title">// Table of Contents</div>
+    <ol>
+      <li><a href="#sinstall"><span class="num">00.</span> Artix Minimal Install &amp; rEFInd Setup</a></li>
+      <li><a href="#s0"><span class="num">01.</span> CachyOS Kernel &amp; System Optimization</a></li>
+      <li><a href="#s1"><span class="num">02.</span> rEFInd Kernel Parameters (AMD)</a></li>
+      <li><a href="#s2"><span class="num">03.</span> Driver &amp; Mesa Stack</a></li>
+      <li><a href="#s3"><span class="num">04.</span> Vulkan &amp; 32-bit Libraries</a></li>
+      <li><a href="#s4"><span class="num">05.</span> dinit Services Setup</a></li>
+      <li><a href="#s5"><span class="num">06.</span> Environment Variables</a></li>
+      <li><a href="#s6"><span class="num">07.</span> Gaming Tools (GameMode, MangoHud)</a></li>
+      <li><a href="#s7"><span class="num">08.</span> Steam &amp; Wine / Proton</a></li>
+      <li><a href="#s8"><span class="num">09.</span> Performance Tuning &amp; Overclocking</a></li>
+      <li><a href="#s9"><span class="num">10.</span> Verification &amp; Troubleshooting</a></li>
+      <li><a href="#shypr"><span class="num">11.</span> Hyprland Rice — Basic Setup</a></li>
+    </ol>
+  </nav>
+
+  <!-- ═══════════════════════════════ SECTION INSTALL ══════════════════════════ -->
+  <section id="sinstall">
+    <h2><span class="sec-num">00</span> Artix Minimal Install &amp; rEFInd Setup</h2>
+
+    <p>This section walks through a complete command-line installation of Artix Linux (dinit) from the base ISO, removing GRUB entirely and replacing it with rEFInd. By the end you'll have a bootable minimal system ready for the rest of this guide.</p>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>Assumed setup</strong>UEFI system, single NVMe/SSD, GPT partition table. Adapt device paths (<code>nvme0n1</code>, <code>sda</code>, etc.) to match your hardware. Run <code>lsblk</code> to confirm.</div>
+    </div>
+
+    <h3>Step 1 — Boot the Artix ISO</h3>
+    <p>Download the <strong>artix-base-dinit</strong> ISO from <code>artixlinux.org</code>, write it to USB, and boot it. You'll land at a root shell. Confirm you're in UEFI mode:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">ls</span> <span class="c-path">/sys/firmware/efi/efivars</span>
+<span class="c-cmt"># If this directory exists you are in UEFI mode — proceed</span>
+<span class="c-cmt"># If not, check your BIOS and disable CSM/legacy boot</span></pre>
+    </div>
+
+    <h3>Step 2 — Connect to the internet</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — ethernet (auto)</span></div>
+      <pre><span class="c-cmd">ping</span> <span class="c-flag">-c3</span> artixlinux.org   <span class="c-cmt"># ethernet usually works immediately</span></pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — wifi (connmanctl)</span></div>
+      <pre><span class="c-cmd">connmanctl</span>
+  <span class="c-cmd">enable</span> wifi
+  <span class="c-cmd">scan</span> wifi
+  <span class="c-cmd">services</span>                        <span class="c-cmt"># lists visible networks</span>
+  <span class="c-cmd">connect</span> wifi_&lt;your_network_id&gt;
+  <span class="c-cmd">quit</span></pre>
+    </div>
+
+    <h3>Step 3 — Partition the disk</h3>
+    <p>We need three partitions: EFI, swap, and root. Adjust sizes to your disk.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — identify your disk</span></div>
+      <pre><span class="c-cmd">lsblk</span>
+<span class="c-cmt"># Common names: /dev/nvme0n1 (NVMe), /dev/sda (SATA)</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — partition with fdisk (example: /dev/nvme0n1)</span></div>
+      <pre><span class="c-cmd">fdisk</span> <span class="c-path">/dev/nvme0n1</span>
+
+<span class="c-cmt"># Inside fdisk:</span>
+<span class="c-cmt">#  g        — create new GPT partition table</span>
+<span class="c-cmt">#  n        — new partition</span>
+<span class="c-cmt">#  1        — partition number</span>
+<span class="c-cmt">#  (enter)  — default first sector</span>
+<span class="c-cmt">#  +512M    — EFI partition size</span>
+<span class="c-cmt">#  t → 1   — set type to EFI System</span>
+<span class="c-cmt">#  n → 2 → (enter) → +8G   — swap</span>
+<span class="c-cmt">#  t → 2 → 19              — Linux swap type</span>
+<span class="c-cmt">#  n → 3 → (enter) → (enter) — root, rest of disk</span>
+<span class="c-cmt">#  w        — write and exit</span></pre>
+    </div>
+
+    <h3>Step 4 — Format partitions</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmt"># EFI partition</span>
+<span class="c-cmd">mkfs.fat</span> <span class="c-flag">-F32</span> <span class="c-path">/dev/nvme0n1p1</span>
+
+<span class="c-cmt"># Swap</span>
+<span class="c-cmd">mkswap</span> <span class="c-path">/dev/nvme0n1p2</span>
+<span class="c-cmd">swapon</span> <span class="c-path">/dev/nvme0n1p2</span>
+
+<span class="c-cmt"># Root (ext4 — or use btrfs if preferred)</span>
+<span class="c-cmd">mkfs.ext4</span> <span class="c-path">/dev/nvme0n1p3</span></pre>
+    </div>
+
+    <h3>Step 5 — Mount filesystems</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">mount</span> <span class="c-path">/dev/nvme0n1p3</span> <span class="c-path">/mnt</span>
+<span class="c-cmd">mkdir</span> <span class="c-flag">-p</span> <span class="c-path">/mnt/boot/efi</span>
+<span class="c-cmd">mount</span> <span class="c-path">/dev/nvme0n1p1</span> <span class="c-path">/mnt/boot/efi</span></pre>
+    </div>
+
+    <h3>Step 6 — Install base system</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — basestrap (Artix's pacstrap equivalent)</span></div>
+      <pre><span class="c-cmd">basestrap</span> <span class="c-path">/mnt</span> \
+  base base-devel \
+  dinit dinit-rc \
+  linux linux-headers linux-firmware \
+  amd-ucode \
+  networkmanager networkmanager-dinit \
+  neovim git curl wget \
+  efibootmgr</pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>amd-ucode</strong> installs AMD CPU microcode updates. rEFInd will load it automatically as an initrd alongside your main initramfs — no manual configuration needed.</div>
+    </div>
+
+    <h3>Step 7 — Generate fstab</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">fstabgen</span> <span class="c-flag">-U</span> <span class="c-path">/mnt</span> <span class="c-flag">&gt;&gt;</span> <span class="c-path">/mnt/etc/fstab</span>
+<span class="c-cmd">cat</span> <span class="c-path">/mnt/etc/fstab</span>   <span class="c-cmt"># verify it looks correct</span></pre>
+    </div>
+
+    <h3>Step 8 — Chroot into the new system</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">artix-chroot</span> <span class="c-path">/mnt</span></pre>
+    </div>
+
+    <h3>Step 9 — System configuration</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — locale, timezone, hostname</span></div>
+      <pre><span class="c-cmt"># Timezone</span>
+<span class="c-cmd">ln</span> <span class="c-flag">-sf</span> <span class="c-path">/usr/share/zoneinfo/America/Chicago</span> <span class="c-path">/etc/localtime</span>
+<span class="c-cmd">hwclock</span> <span class="c-flag">--systohc</span>
+
+<span class="c-cmt"># Locale — uncomment en_US.UTF-8 in /etc/locale.gen</span>
+<span class="c-cmd">sed</span> <span class="c-flag">-i</span> <span class="c-str">'s/#en_US.UTF-8/en_US.UTF-8/'</span> <span class="c-path">/etc/locale.gen</span>
+<span class="c-cmd">locale-gen</span>
+<span class="c-cmd">echo</span> <span class="c-str">"LANG=en_US.UTF-8"</span> <span class="c-flag">&gt;</span> <span class="c-path">/etc/locale.conf</span>
+
+<span class="c-cmt"># Hostname</span>
+<span class="c-cmd">echo</span> <span class="c-str">"artix-gaming"</span> <span class="c-flag">&gt;</span> <span class="c-path">/etc/hostname</span>
+
+<span class="c-cmt"># Hosts file</span>
+<span class="c-cmd">cat</span> <span class="c-flag">&gt;&gt;</span> <span class="c-path">/etc/hosts</span> <span class="c-flag">&lt;&lt;EOF</span>
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   artix-gaming.localdomain artix-gaming
+<span class="c-flag">EOF</span></pre>
+    </div>
+
+    <h3>Step 10 — Root password &amp; user</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">passwd</span>   <span class="c-cmt"># set root password</span>
+
+<span class="c-cmt"># Create your user account</span>
+<span class="c-cmd">useradd</span> <span class="c-flag">-mG</span> wheel,audio,video,input,storage <span class="c-flag">-s</span> /bin/bash &lt;username&gt;
+<span class="c-cmd">passwd</span> &lt;username&gt;
+
+<span class="c-cmt"># Allow wheel group to use sudo</span>
+<span class="c-cmd">sed</span> <span class="c-flag">-i</span> <span class="c-str">'s/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/'</span> <span class="c-path">/etc/sudoers</span></pre>
+    </div>
+
+    <h3>Step 11 — mkinitcpio (with early amdgpu)</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/mkinitcpio.conf</span></div>
+      <pre><span class="c-key">MODULES</span>=<span class="c-str">(amdgpu)</span>
+<span class="c-key">HOOKS</span>=<span class="c-str">(base udev autodetect modconf block filesystems keyboard fsck)</span></pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">mkinitcpio</span> <span class="c-flag">-P</span></pre>
+    </div>
+
+    <h3>Step 12 — Install rEFInd (skip GRUB entirely)</h3>
+    <p>We install rEFInd directly, bypassing GRUB. rEFInd auto-detects all kernels on the ESP and boot partition — no config file is strictly required to get a working boot.</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">pacman</span> <span class="c-flag">-S</span> refind
+<span class="c-cmd">refind-install</span>
+<span class="c-cmt"># This copies rEFInd to /boot/efi/EFI/refind/ and registers it</span>
+<span class="c-cmt"># with the UEFI firmware as the default boot entry</span></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠</div>
+      <div class="callout-body"><strong>Do NOT install grub</strong>Never run <code>pacman -S grub</code> or <code>grub-install</code> — rEFInd handles everything. Having both bootloaders installed can create conflicting UEFI entries.</div>
+    </div>
+
+    <h3>Step 13 — Configure rEFInd for linux-cachyos + AMD params</h3>
+    <p>rEFInd auto-detects kernels but needs your AMD kernel parameters. Create <code>refind_linux.conf</code> in <code>/boot</code> so rEFInd picks them up automatically for every kernel it finds:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /boot/refind_linux.conf</span></div>
+      <pre><span class="c-str">"Boot default"</span>   <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt"</span>
+<span class="c-str">"Boot fallback"</span>  <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw initrd=/boot/initramfs-linux-fallback.img"</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — get your root PARTUUID</span></div>
+      <pre><span class="c-cmd">blkid</span> <span class="c-flag">-s</span> PARTUUID <span class="c-flag">-o</span> value <span class="c-path">/dev/nvme0n1p3</span>
+<span class="c-cmt"># Paste the output into refind_linux.conf above</span></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>amd-ucode autoloading</strong>rEFInd automatically loads <code>/boot/amd-ucode.img</code> as an early initrd when it detects it. No manual <code>initrd</code> line is needed for microcode — it just works.</div>
+    </div>
+
+    <h3>Step 14 — Enable NetworkManager &amp; reboot</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmt"># Enable NetworkManager via dinit</span>
+<span class="c-cmd">ln</span> <span class="c-flag">-s</span> <span class="c-path">/etc/dinit.d/NetworkManager</span> <span class="c-path">/etc/dinit.d/boot.d/</span>
+
+<span class="c-cmt"># Exit chroot, unmount, reboot</span>
+<span class="c-cmd">exit</span>
+<span class="c-cmd">umount</span> <span class="c-flag">-R</span> <span class="c-path">/mnt</span>
+<span class="c-cmd">reboot</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>First boot</strong>rEFInd should appear automatically and show your Artix kernel. Select it, boot in, log in as your user, then continue with Section 01 to add CachyOS repos and install the gaming kernel.</div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 0 ═══════════════════════════════ -->
+  <section id="s0">
+    <h2><span class="sec-num">01</span> CachyOS Kernel &amp; System Optimization</h2>
+
+    <p>Instead of the standard Arch <code>linux</code> or <code>linux-zen</code> kernel, we're going with <strong>linux-cachyos</strong> — a performance-tuned kernel built specifically for desktop and gaming responsiveness. It ships with the BORE/EEVDF scheduler, AMD-pstate improvements, BBRv3 networking, LTO compilation, and cherry-picked patches that haven't yet landed in mainline.</p>
+
+    <h3>Step 1 — Full base system update</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-Syu</span>
+<span class="c-cmt"># Reboot if anything was updated before continuing</span></pre>
+    </div>
+
+    <h3>Step 2 — Add the CachyOS repository</h3>
+    <p>CachyOS provides an automated script that detects your CPU's highest supported x86-64 micro-architecture level (v3, v4, or znver4 for AMD Zen 4/5) and adds the correct optimised repos automatically:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — add CachyOS repos (automated)</span></div>
+      <pre><span class="c-cmd">cd</span> <span class="c-path">/tmp</span>
+<span class="c-cmd">curl</span> <span class="c-flag">-O</span> https://mirror.cachyos.org/cachyos-repo.tar.xz
+<span class="c-cmd">tar</span> xvf cachyos-repo.tar.xz <span class="c-flag">&amp;&amp;</span> <span class="c-cmd">cd</span> cachyos-repo
+<span class="c-cmd">sudo ./cachyos-repo.sh</span>   <span class="c-cmt"># detects CPU arch, adds correct repos, imports keys</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>What the script does</strong>It imports the CachyOS GPG keyring, adds the appropriate mirrorlists, and inserts the repo blocks into <code>/etc/pacman.conf</code> above the Arch repos. A backup of your original pacman.conf is saved automatically.</div>
+    </div>
+
+    <h3>Manual repo config (if you prefer not to run the script)</h3>
+    <p>First check your CPU's highest supported level:</p>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — detect x86-64 level</span></div>
+      <pre><span class="c-cmd">/lib/ld-linux-x86-64.so.2</span> <span class="c-flag">--help</span> <span class="c-flag">|</span> <span class="c-cmd">grep</span> <span class="c-str">"supported, searched"</span>
+<span class="c-cmt"># Output example: x86-64-v3 (supported, searched)</span>
+<span class="c-cmt"># For AMD Zen 4/5, check: gcc -Q --help=target | grep march</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/pacman.conf (add ABOVE [core], for x86-64-v3 CPUs)</span></div>
+      <pre><span class="c-cmt"># CachyOS optimised repositories — place above [core]</span>
+[cachyos-v3]
+Include = <span class="c-path">/etc/pacman.d/cachyos-v3-mirrorlist</span>
+[cachyos-core-v3]
+Include = <span class="c-path">/etc/pacman.d/cachyos-v3-mirrorlist</span>
+[cachyos-extra-v3]
+Include = <span class="c-path">/etc/pacman.d/cachyos-v3-mirrorlist</span>
+[cachyos]
+Include = <span class="c-path">/etc/pacman.d/cachyos-mirrorlist</span></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>AMD Zen 4 / Zen 5 users</strong> (Ryzen 7000/9000 series) — use <code>[cachyos-znver4]</code> repos instead of v3/v4. These are compiled with <code>-march=znver4</code> and offer the best performance on that architecture.</div>
+    </div>
+
+    <h3>Step 3 — Install linux-cachyos kernel</h3>
+    <p>CachyOS provides several kernel flavours. The default <code>linux-cachyos</code> uses the BORE+EEVDF scheduler — the best choice for gaming and desktop responsiveness:</p>
+
+    <table class="pkg-table">
+      <thead><tr><th>Package</th><th>Scheduler</th><th>Best for</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><code>linux-cachyos</code></td><td>BORE + EEVDF</td><td>Gaming, desktop — best all-rounder</td><td><span class="tag rec">Recommended</span></td></tr>
+        <tr><td><code>linux-cachyos-bore</code></td><td>BORE</td><td>Maximum interactivity under heavy load</td><td><span class="tag opt">Optional</span></td></tr>
+        <tr><td><code>linux-cachyos-sched-ext</code></td><td>sched-ext (BPF)</td><td>Experimental — pluggable userspace schedulers</td><td><span class="tag opt">Optional</span></td></tr>
+        <tr><td><code>linux-cachyos-lts</code></td><td>BORE + EEVDF</td><td>Stability-focused, LTS base</td><td><span class="tag opt">Optional</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — install CachyOS kernel</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-Syu</span>   <span class="c-cmt"># sync new repos first</span>
+<span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> linux-cachyos linux-cachyos-headers</pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠</div>
+      <div class="callout-body"><strong>Keep a fallback kernel</strong>Until you've confirmed <code>linux-cachyos</code> boots successfully, keep your existing <code>linux</code> kernel installed. rEFInd will show both at boot — you can always fall back.</div>
+    </div>
+
+    <h3>Step 4 — Update rEFInd stanza for linux-cachyos</h3>
+    <p>The CachyOS kernel uses a different vmlinuz filename. Update your <code>refind_linux.conf</code>:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /boot/refind_linux.conf</span></div>
+      <pre><span class="c-str">"CachyOS BORE+EEVDF"</span>  <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt initrd=/boot/initramfs-linux-cachyos.img"</span>
+<span class="c-str">"Fallback linux"</span>       <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw initrd=/boot/initramfs-linux-fallback.img"</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>vmlinuz path</strong>The CachyOS kernel installs as <code>/boot/vmlinuz-linux-cachyos</code>. If using a manual rEFInd stanza (not auto-scan), update the <code>loader</code> line to this path and set <code>initrd</code> to <code>/boot/initramfs-linux-cachyos.img</code>.</div>
+    </div>
+
+    <h3>Step 5 — mkinitcpio with amdgpu early KMS</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/mkinitcpio.conf</span></div>
+      <pre><span class="c-key">MODULES</span>=<span class="c-str">(amdgpu)</span>
+<span class="c-key">HOOKS</span>=<span class="c-str">(base udev autodetect modconf block filesystems keyboard fsck)</span></pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo mkinitcpio</span> <span class="c-flag">-P</span>   <span class="c-cmt"># rebuilds ALL kernel presets including linux-cachyos</span></pre>
+    </div>
+
+    <h3>Step 6 — Update linux-firmware</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> linux-firmware
+<span class="c-cmd">ls</span> <span class="c-path">/usr/lib/firmware/amdgpu/</span> <span class="c-flag">|</span> <span class="c-cmd">grep</span> navi3
+<span class="c-cmt"># Expect: navi32_ce.bin, navi32_me.bin, navi32_pfp.bin, navi32_rlc.bin ...</span></pre>
+    </div>
+
+    <h3>Step 7 — Gaming sysctl tweaks</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/sysctl.d/99-gaming.conf</span></div>
+      <pre><span class="c-cmt"># Keep more in RAM, reduce swap thrash</span>
+<span class="c-key">vm.swappiness</span>                    = 10
+
+<span class="c-cmt"># Steam and game engines need large inotify limits</span>
+<span class="c-key">fs.inotify.max_user_watches</span>      = 524288
+
+<span class="c-cmt"># Scheduler tuning — less aggressive preemption</span>
+<span class="c-key">kernel.sched_min_granularity_ns</span>  = 500000
+<span class="c-key">kernel.sched_wakeup_granularity_ns</span> = 1000000
+
+<span class="c-cmt"># Required by many modern games and Proton (default 65530 is too low)</span>
+<span class="c-key">vm.max_map_count</span>                 = 2147483642</pre>
+    </div>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — apply immediately</span></div>
+      <pre><span class="c-cmd">sudo sysctl</span> <span class="c-flag">--system</span></pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>CachyOS kernel patches relevant to your GPU</strong> include cherry-picked AMD-pstate improvements and amdgpu fixes from the mailing list — meaning you often get RDNA3 fixes weeks before they land in the mainline stable kernel.</div>
+    </div>
+
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 1 ═══════════════════════════════ -->
+  <section id="s1">
+    <h2><span class="sec-num">02</span> rEFInd Kernel Parameters (AMD)</h2>
+
+    <p>With rEFInd installed and the base system running, this section covers updating your boot parameters for the CachyOS kernel installed in Section 01. Since rEFInd reads <code>/boot/refind_linux.conf</code> directly at boot, there is no regeneration step — edits take effect on the next reboot.</p>
+
+    <h3>Update refind_linux.conf for linux-cachyos</h3>
+    <p>Edit <code>/boot/refind_linux.conf</code> to point at the CachyOS initramfs and include all AMD gaming parameters:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /boot/refind_linux.conf</span></div>
+      <pre><span class="c-str">"CachyOS BORE+EEVDF"</span>  <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt initrd=/boot/initramfs-linux-cachyos.img"</span>
+<span class="c-str">"Fallback"</span>            <span class="c-str">"root=PARTUUID=&lt;your-partuuid&gt; rw initrd=/boot/initramfs-linux-cachyos-fallback.img"</span></pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>vmlinuz filename</strong>The CachyOS kernel installs as <code>/boot/vmlinuz-linux-cachyos</code>. rEFInd auto-detects it via the kernel auto-scan — you only need to ensure the <code>initrd</code> line in <code>refind_linux.conf</code> matches the correct filename.</div>
+    </div>
+
+    <h3>AMD kernel parameters reference</h3>
+    <table class="pkg-table">
+      <thead><tr><th>Parameter</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>amdgpu.ppfeaturemask=0xffffffff</code></td><td>Unlocks all power/performance features including manual fan and clock control via CoreCtrl</td></tr>
+        <tr><td><code>amd_pstate=active</code></td><td>Enables AMD P-State CPU driver — lower latency frequency scaling on Zen 3+</td></tr>
+        <tr><td><code>iommu=pt</code></td><td>IOMMU passthrough mode — reduces overhead for GPU gaming workloads</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Verify GPU is detected after reboot</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">lspci</span> <span class="c-flag">-k</span> <span class="c-flag">-d</span> <span class="c-str">::0300</span>
+<span class="c-cmt"># Should show: Kernel driver in use: amdgpu</span>
+<span class="c-cmd">dmesg</span> <span class="c-flag">|</span> <span class="c-cmd">grep</span> amdgpu
+<span class="c-cmd">uname</span> <span class="c-flag">-r</span>
+<span class="c-cmt"># Should show: 6.x.x-x-cachyos</span></pre>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 2 ═══════════════════════════════ -->
+  <section id="s2">
+    <h2><span class="sec-num">02</span> Driver &amp; Mesa Stack</h2>
+
+    <p>Artix uses pacman. Install the full Mesa/AMDGPU open driver stack:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — install core graphics stack</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-Syu</span> \
+  mesa \
+  lib32-mesa \
+  xf86-video-amdgpu \
+  libdrm \
+  lib32-libdrm \
+  libva-mesa-driver \
+  lib32-libva-mesa-driver \
+  mesa-vdpau \
+  lib32-mesa-vdpau</pre>
+    </div>
+
+    <table class="pkg-table">
+      <thead><tr><th>Package</th><th>Role</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>mesa</code></td><td>OpenGL/Vulkan userspace driver (radeonsi / radv)</td><td><span class="tag req">Required</span></td></tr>
+        <tr><td><code>lib32-mesa</code></td><td>32-bit Mesa for 32-bit games/wine</td><td><span class="tag req">Required</span></td></tr>
+        <tr><td><code>xf86-video-amdgpu</code></td><td>X11 DDX driver (X.org modesetting is fine too)</td><td><span class="tag rec">Recommended</span></td></tr>
+        <tr><td><code>libdrm</code></td><td>Direct rendering manager userspace library</td><td><span class="tag req">Required</span></td></tr>
+        <tr><td><code>libva-mesa-driver</code></td><td>VA-API hardware video decode</td><td><span class="tag rec">Recommended</span></td></tr>
+        <tr><td><code>mesa-vdpau</code></td><td>VDPAU hardware video decode</td><td><span class="tag opt">Optional</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>Mesa-git</strong>For the latest RDNA3 fixes and features, consider installing <code>mesa-git</code> from the AUR. It often contains patches weeks before stable release.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 3 ═══════════════════════════════ -->
+  <section id="s3">
+    <h2><span class="sec-num">03</span> Vulkan &amp; 32-bit Libraries</h2>
+
+    <p>The RX 7800 XT uses the <strong>RADV</strong> Vulkan driver (part of Mesa). Ensure Vulkan ICD loaders and layers are installed:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — vulkan packages</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> \
+  vulkan-radeon \
+  lib32-vulkan-radeon \
+  vulkan-icd-loader \
+  lib32-vulkan-icd-loader \
+  vulkan-tools</pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>Note</strong><code>vulkan-radeon</code> is the standalone RADV package (separate from the Mesa monolithic build on some distros). On Arch/Artix it is included in <code>mesa</code> but installing explicitly guarantees the ICD file is present.</div>
+    </div>
+
+    <h3>Verify Vulkan</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">vulkaninfo</span> <span class="c-flag">--summary</span>
+<span class="c-cmt"># Should list: AMD Radeon RX 7800 XT (RADV NAVI32)</span></pre>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 4 ═══════════════════════════════ -->
+  <section id="s4">
+    <h2><span class="sec-num">04</span> dinit Services Setup</h2>
+
+    <p>Unlike systemd, Artix with dinit manages services via <code>/etc/dinit.d/</code>. The key services relevant to GPU gaming are: <strong>dbus</strong>, <strong>polkit</strong>, and (if using Wayland compositors) the display server target.</p>
+
+    <div class="callout danger">
+      <div class="callout-icon">✖</div>
+      <div class="callout-body"><strong>Critical</strong>dbus and polkit MUST be running before launching a desktop session or GPU power management tools. Missing dbus causes silent failures in GameMode and MangoHud.</div>
+    </div>
+
+    <h3>Enable required base services</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — dinit service activation</span></div>
+      <pre><span class="c-cmt"># Enable dbus</span>
+<span class="c-cmd">sudo dinitctl</span> enable dbus
+
+<span class="c-cmt"># Enable polkit (required for user-level GPU power control)</span>
+<span class="c-cmd">sudo dinitctl</span> enable polkit
+
+<span class="c-cmt"># Enable your display manager if using one (e.g. sddm, lightdm)</span>
+<span class="c-cmd">sudo dinitctl</span> enable sddm
+
+<span class="c-cmt"># Start them immediately (without rebooting)</span>
+<span class="c-cmd">sudo dinitctl</span> start dbus
+<span class="c-cmd">sudo dinitctl</span> start polkit</pre>
+    </div>
+
+    <h3>Create a custom dinit service for corectrl (optional)</h3>
+    <p>If using CoreCtrl for GPU overclocking, create a user service:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/dinit.d/corectrl</span></div>
+      <pre><span class="c-key">type</span>            = <span class="c-str">process</span>
+<span class="c-key">command</span>         = <span class="c-path">/usr/bin/corectrl</span>
+<span class="c-key">depends-on</span>      = dbus
+<span class="c-key">depends-on</span>      = polkit
+<span class="c-key">restart</span>         = <span class="c-str">false</span>
+<span class="c-key">logfile</span>         = <span class="c-path">/var/log/corectrl.log</span></pre>
+    </div>
+
+    <h3>Checking service status</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">dinitctl</span> list
+<span class="c-cmd">dinitctl</span> status dbus
+<span class="c-cmd">dinitctl</span> status polkit</pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>dinit user services</strong>dinit also supports per-user service directories at <code>~/.config/dinit.d/</code>. Run <code>dinit --user</code> in your session to manage user-scoped services like pipewire or gamemoded.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 5 ═══════════════════════════════ -->
+  <section id="s5">
+    <h2><span class="sec-num">05</span> Environment Variables</h2>
+
+    <p>Set these in your shell profile (<code>~/.bash_profile</code>, <code>~/.zprofile</code>, or your compositor's exec script):</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — ~/.bash_profile or ~/.zprofile</span></div>
+      <pre><span class="c-cmt"># Force RADV (Mesa Vulkan) over AMDVLK if both are installed</span>
+<span class="c-key">export</span> <span class="c-var">AMD_VULKAN_ICD</span>=<span class="c-str">RADV</span>
+
+<span class="c-cmt"># Enable ACO shader compiler (default in Mesa 22+, explicit for clarity)</span>
+<span class="c-key">export</span> <span class="c-var">RADV_PERFTEST</span>=<span class="c-str">aco,nggc</span>
+
+<span class="c-cmt"># VA-API driver for hardware video decode</span>
+<span class="c-key">export</span> <span class="c-var">LIBVA_DRIVER_NAME</span>=<span class="c-str">radeonsi</span>
+
+<span class="c-cmt"># Wayland: use AMD GBM backend</span>
+<span class="c-key">export</span> <span class="c-var">GBM_BACKEND</span>=<span class="c-str">amdgpu</span>
+
+<span class="c-cmt"># For SDL2-based games: prefer Wayland if on a Wayland compositor</span>
+<span class="c-key">export</span> <span class="c-var">SDL_VIDEODRIVER</span>=<span class="c-str">wayland</span>  <span class="c-cmt"># remove if using X11</span>
+
+<span class="c-cmt"># Disable vsync globally (let games/compositor manage it)</span>
+<span class="c-key">export</span> <span class="c-var">vblank_mode</span>=<span class="c-str">0</span></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠</div>
+      <div class="callout-body"><strong>SDL_VIDEODRIVER</strong>Only set <code>SDL_VIDEODRIVER=wayland</code> if your session runs a Wayland compositor. On X11 this will break SDL-based games.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 6 ═══════════════════════════════ -->
+  <section id="s6">
+    <h2><span class="sec-num">06</span> Gaming Tools — GameMode &amp; MangoHud</h2>
+
+    <h3>Install</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> gamemode lib32-gamemode mangohud lib32-mangohud</pre>
+    </div>
+
+    <h3>dinit user service for gamemoded</h3>
+    <p>Create a user-level dinit service so <code>gamemoded</code> starts with your session:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — ~/.config/dinit.d/gamemoded</span></div>
+      <pre><span class="c-key">type</span>        = <span class="c-str">process</span>
+<span class="c-key">command</span>     = <span class="c-path">/usr/bin/gamemoded</span> <span class="c-flag">-r</span>
+<span class="c-key">restart</span>     = <span class="c-str">true</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — start user dinit &amp; enable gamemoded</span></div>
+      <pre><span class="c-cmt"># Start user-level dinit (add to your autostart / .xinitrc / compositor exec)</span>
+<span class="c-cmd">dinit</span> <span class="c-flag">--user</span> &amp;
+
+<span class="c-cmt"># Enable the user service</span>
+<span class="c-cmd">dinitctl</span> <span class="c-flag">--user</span> enable gamemoded
+<span class="c-cmd">dinitctl</span> <span class="c-flag">--user</span> start gamemoded</pre>
+    </div>
+
+    <h3>Add your user to the gamemode group</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo usermod</span> <span class="c-flag">-aG</span> gamemode <span class="c-var">$USER</span>
+<span class="c-cmt"># Log out and back in after this</span></pre>
+    </div>
+
+    <h3>Launch games with GameMode + MangoHud</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — example launch command</span></div>
+      <pre><span class="c-cmd">gamemoderun</span> <span class="c-cmd">mangohud</span> <span class="c-path">/path/to/game</span>
+
+<span class="c-cmt"># Verify gamemode is active</span>
+<span class="c-cmd">gamemoded</span> <span class="c-flag">-s</span></pre>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 7 ═══════════════════════════════ -->
+  <section id="s7">
+    <h2><span class="sec-num">07</span> Steam &amp; Wine / Proton</h2>
+
+    <h3>Enable multilib repository</h3>
+    <p>Uncomment the <code>[multilib]</code> section in <code>/etc/pacman.conf</code>:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/pacman.conf</span></div>
+      <pre>[multilib]
+Include = <span class="c-path">/etc/pacman.d/mirrorlist</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-Syu</span> steam</pre>
+    </div>
+
+    <h3>Steam launch options for RX 7800 XT</h3>
+    <p>In Steam → Game Properties → Launch Options, use:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — steam launch options</span></div>
+      <pre>RADV_PERFTEST=nggc,aco DXVK_ASYNC=1 gamemoderun mangohud %command%</pre>
+    </div>
+
+    <h3>Proton-GE (recommended)</h3>
+    <p>Install ProtonGE for better Windows game compatibility and AMD-specific patches:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — install protonup-qt from AUR</span></div>
+      <pre><span class="c-cmt"># Using paru or yay</span>
+<span class="c-cmd">paru</span> <span class="c-flag">-S</span> protonup-qt
+<span class="c-cmt"># Then open protonup-qt, add Proton-GE, restart Steam</span></pre>
+    </div>
+
+    <h3>DXVK &amp; VKD3D-Proton</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> dxvk-bin vkd3d-proton-bin lib32-vkd3d</pre>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 8 ═══════════════════════════════ -->
+  <section id="s8">
+    <h2><span class="sec-num">08</span> Performance Tuning &amp; Overclocking</h2>
+
+    <h3>GPU power profile</h3>
+    <p>The amdgpu driver exposes power profiles via sysfs. For maximum gaming performance:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — set high performance power profile</span></div>
+      <pre><span class="c-cmt"># List available profiles</span>
+<span class="c-cmd">cat</span> <span class="c-path">/sys/class/drm/card0/device/power_dpm_force_performance_level</span>
+
+<span class="c-cmt"># Set high performance</span>
+<span class="c-cmd">echo</span> <span class="c-str">"high"</span> <span class="c-flag">|</span> <span class="c-cmd">sudo tee</span> <span class="c-path">/sys/class/drm/card0/device/power_dpm_force_performance_level</span>
+
+<span class="c-cmt"># Or use "auto" for balanced (default)</span>
+<span class="c-cmd">echo</span> <span class="c-str">"auto"</span> <span class="c-flag">|</span> <span class="c-cmd">sudo tee</span> <span class="c-path">/sys/class/drm/card0/device/power_dpm_force_performance_level</span></pre>
+    </div>
+
+    <h3>Persist the power profile via dinit oneshot service</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — /etc/dinit.d/amdgpu-perf</span></div>
+      <pre><span class="c-key">type</span>        = <span class="c-str">scripted</span>
+<span class="c-key">command</span>     = <span class="c-path">/usr/local/bin/amdgpu-perf.sh</span>
+<span class="c-key">depends-on</span>  = udev</pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — /usr/local/bin/amdgpu-perf.sh</span></div>
+      <pre>#!/bin/sh
+<span class="c-cmd">echo</span> <span class="c-str">"high"</span> &gt; <span class="c-path">/sys/class/drm/card0/device/power_dpm_force_performance_level</span>
+<span class="c-cmd">echo</span> <span class="c-str">"5"</span> &gt; <span class="c-path">/sys/class/drm/card0/device/pp_power_profile_mode</span>
+<span class="c-cmt"># Profile 5 = "VR" mode — high sustained clocks, good for gaming</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo chmod</span> <span class="c-flag">+x</span> <span class="c-path">/usr/local/bin/amdgpu-perf.sh</span>
+<span class="c-cmd">sudo dinitctl</span> enable amdgpu-perf
+<span class="c-cmd">sudo dinitctl</span> start amdgpu-perf</pre>
+    </div>
+
+    <h3>CoreCtrl (GUI overclock tool)</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">paru</span> <span class="c-flag">-S</span> corectrl
+
+<span class="c-cmt"># Allow user to control GPU without sudo (polkit rule)</span>
+<span class="c-cmd">sudo cp</span> <span class="c-path">/usr/share/polkit-1/rules.d/90-corectrl.rules</span> \
+         <span class="c-path">/etc/polkit-1/rules.d/</span></pre>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠</div>
+      <div class="callout-body"><strong>Kernel parameter required</strong>CoreCtrl's full GPU control requires <code>amdgpu.ppfeaturemask=0xffffffff</code> in your kernel command line (set in Section 1).</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION 9 ═══════════════════════════════ -->
+  <section id="s9">
+    <h2><span class="sec-num">09</span> Verification &amp; Troubleshooting</h2>
+
+    <h3>Full system check</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — verification commands</span></div>
+      <pre><span class="c-cmt"># GPU info and clocks</span>
+<span class="c-cmd">radeontop</span>
+<span class="c-cmd">watch</span> <span class="c-flag">-n1</span> <span class="c-cmd">cat</span> <span class="c-path">/sys/class/drm/card0/device/hwmon/hwmon*/temp1_input</span>
+
+<span class="c-cmt"># OpenGL renderer</span>
+<span class="c-cmd">glxinfo</span> <span class="c-flag">-B</span> <span class="c-flag">|</span> <span class="c-cmd">grep</span> <span class="c-str">"renderer\|version"</span>
+
+<span class="c-cmt"># Vulkan info</span>
+<span class="c-cmd">vulkaninfo</span> <span class="c-flag">--summary</span>
+
+<span class="c-cmt"># VA-API decode check</span>
+<span class="c-cmd">vainfo</span>
+
+<span class="c-cmt"># GameMode status</span>
+<span class="c-cmd">gamemoded</span> <span class="c-flag">-s</span>
+
+<span class="c-cmt"># dinit service statuses</span>
+<span class="c-cmd">dinitctl</span> list</pre>
+    </div>
+
+    <h3>Common issues</h3>
+
+    <div class="callout danger">
+      <div class="callout-icon">✖</div>
+      <div class="callout-body"><strong>Black screen / no display</strong>Ensure <code>amdgpu</code> is in your initramfs. Add it to <code>MODULES=(amdgpu)</code> in <code>/etc/mkinitcpio.conf</code>, then run <code>mkinitcpio -P</code>.</div>
+    </div>
+
+    <div class="callout danger">
+      <div class="callout-icon">✖</div>
+      <div class="callout-body"><strong>Games crash with Vulkan errors</strong>Check that <code>vulkan-radeon</code> ICD is being picked up: <code>VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/radeon_icd.x86_64.json vulkaninfo</code></div>
+    </div>
+
+    <div class="callout warn">
+      <div class="callout-icon">⚠</div>
+      <div class="callout-body"><strong>GameMode not activating</strong>Confirm <code>gamemoded</code> is running (<code>dinitctl --user status gamemoded</code>) and your user is in the <code>gamemode</code> group (<code>groups $USER</code>).</div>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>dmesg GPU errors</strong>If you see <code>amdgpu: failed to allocate VRAM</code> errors, add <code>amdgpu.gartsize=512</code> to kernel params. For firmware errors, ensure <code>linux-firmware</code> is fully up to date.</div>
+    </div>
+
+    <h3>Install radeontop for live GPU monitoring</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> radeontop
+<span class="c-cmd">radeontop</span>  <span class="c-cmt"># live GPU utilization, VRAM, clocks</span></pre>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════ SECTION HYPR ═══════════════════════════════ -->
+  <section id="shypr">
+    <h2><span class="sec-num">11</span> Hyprland Rice — Basic Setup</h2>
+
+    <p>Hyprland is a dynamic tiling Wayland compositor with a custom renderer supporting animations, rounded corners, and blur. It runs natively on AMD/RADV with zero special configuration needed — unlike Nvidia. This section covers a clean base rice: Hyprland + Waybar + hyprpaper + rofi + dunst + a colour theme.</p>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>AMD advantage</strong>Hyprland officially states NVIDIA support is unsupported. AMD with RADV is the cleanest, lowest-friction Hyprland experience available.</div>
+    </div>
+
+    <h3>Install the core rice stack</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — all rice packages</span></div>
+      <pre><span class="c-cmd">sudo pacman</span> <span class="c-flag">-S</span> \
+  hyprland \
+  xorg-xwayland \
+  waybar \
+  hyprpaper \
+  rofi-wayland \
+  dunst \
+  kitty \
+  nwg-look \
+  polkit-gnome \
+  xdg-desktop-portal-hyprland \
+  xdg-desktop-portal-gtk \
+  ttf-jetbrains-mono-nerd \
+  noto-fonts-emoji \
+  grim slurp \
+  wl-clipboard \
+  brightnessctl \
+  playerctl</pre>
+    </div>
+
+    <table class="pkg-table">
+      <thead><tr><th>Package</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>hyprland</code></td><td>The Wayland compositor / tiling WM</td></tr>
+        <tr><td><code>waybar</code></td><td>Status bar with Hyprland workspace support</td></tr>
+        <tr><td><code>hyprpaper</code></td><td>Wallpaper daemon for Hyprland</td></tr>
+        <tr><td><code>rofi-wayland</code></td><td>App launcher (Wayland-native fork)</td></tr>
+        <tr><td><code>dunst</code></td><td>Notification daemon</td></tr>
+        <tr><td><code>nwg-look</code></td><td>GTK theme picker (Wayland-compatible)</td></tr>
+        <tr><td><code>xdg-desktop-portal-hyprland</code></td><td>Screen share, file picker for Wayland apps</td></tr>
+        <tr><td><code>grim</code> + <code>slurp</code></td><td>Screenshot tools</td></tr>
+        <tr><td><code>ttf-jetbrains-mono-nerd</code></td><td>Nerd font for icons in Waybar</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Bootstrap Hyprland config</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">mkdir</span> <span class="c-flag">-p</span> <span class="c-path">~/.config/hypr</span>
+<span class="c-cmd">cp</span> <span class="c-path">/usr/share/hypr/hyprland.conf</span> <span class="c-path">~/.config/hypr/hyprland.conf</span></pre>
+    </div>
+
+    <h3>Core hyprland.conf — gaming + rice settings</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — ~/.config/hypr/hyprland.conf (key sections)</span></div>
+      <pre><span class="c-cmt"># ── Monitor ───────────────────────────────────────────</span>
+<span class="c-key">monitor</span>=,preferred,auto,1   <span class="c-cmt"># auto-detect resolution/refresh</span>
+<span class="c-cmt"># Example for 1440p 144Hz: monitor=DP-1,2560x1440@144,0x0,1</span>
+
+<span class="c-cmt"># ── Autostart ─────────────────────────────────────────</span>
+<span class="c-key">exec-once</span> = waybar
+<span class="c-key">exec-once</span> = hyprpaper
+<span class="c-key">exec-once</span> = dunst
+<span class="c-key">exec-once</span> = /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+<span class="c-key">exec-once</span> = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
+
+<span class="c-cmt"># ── Variables ─────────────────────────────────────────</span>
+<span class="c-var">$terminal</span>  = kitty
+<span class="c-var">$menu</span>      = rofi -show drun
+<span class="c-var">$mainMod</span>   = SUPER
+
+<span class="c-cmt"># ── Appearance ────────────────────────────────────────</span>
+general {
+    gaps_in          = 5
+    gaps_out         = 10
+    border_size      = 2
+    col.active_border   = rgba(e0352bff) rgba(f47320ff) 45deg
+    col.inactive_border = rgba(1e2230ff)
+    layout           = dwindle
+}
+
+decoration {
+    rounding         = 8
+    blur {
+        enabled      = true
+        size         = 6
+        passes       = 3
+        vibrancy     = 0.2
+    }
+    shadow {
+        enabled      = true
+        range        = 12
+        render_power = 3
+        color        = rgba(0a0b0f99)
+    }
+}
+
+animations {
+    enabled = true
+    bezier  = easeOut, 0.16, 1, 0.3, 1
+    animation = windows,  1, 4, easeOut, slide
+    animation = fade,     1, 4, easeOut
+    animation = workspaces, 1, 5, easeOut, slidevert
+}
+
+<span class="c-cmt"># ── Input ─────────────────────────────────────────────</span>
+input {
+    repeat_rate  = 35
+    repeat_delay = 200
+    follow_mouse = 1
+    sensitivity  = 0
+}
+
+<span class="c-cmt"># ── Key bindings ──────────────────────────────────────</span>
+bind = <span class="c-var">$mainMod</span>, Return, exec, <span class="c-var">$terminal</span>
+bind = <span class="c-var">$mainMod</span>, D,      exec, <span class="c-var">$menu</span>
+bind = <span class="c-var">$mainMod</span>, Q,      killactive
+bind = <span class="c-var">$mainMod</span>, F,      fullscreen
+bind = <span class="c-var">$mainMod</span>, V,      togglefloating
+
+<span class="c-cmt"># Screenshots</span>
+bind = ,      Print, exec, grim <span class="c-path">~/Pictures/screenshots/$(date +%s).png</span>
+bind = SHIFT, Print, exec, grim <span class="c-flag">-g</span> <span class="c-str">"$(slurp)"</span> <span class="c-path">~/Pictures/screenshots/$(date +%s).png</span>
+
+<span class="c-cmt"># Workspace switching</span>
+bind = <span class="c-var">$mainMod</span>, 1, workspace, 1
+bind = <span class="c-var">$mainMod</span>, 2, workspace, 2
+bind = <span class="c-var">$mainMod</span>, 3, workspace, 3
+bind = <span class="c-var">$mainMod</span>, 4, workspace, 4
+bind = <span class="c-var">$mainMod</span>, 5, workspace, 5
+
+<span class="c-cmt"># Move windows to workspaces</span>
+bind = <span class="c-var">$mainMod</span> SHIFT, 1, movetoworkspace, 1
+bind = <span class="c-var">$mainMod</span> SHIFT, 2, movetoworkspace, 2
+bind = <span class="c-var">$mainMod</span> SHIFT, 3, movetoworkspace, 3
+
+<span class="c-cmt"># Window focus</span>
+bind = <span class="c-var">$mainMod</span>, H, movefocus, l
+bind = <span class="c-var">$mainMod</span>, L, movefocus, r
+bind = <span class="c-var">$mainMod</span>, K, movefocus, u
+bind = <span class="c-var">$mainMod</span>, J, movefocus, d
+
+<span class="c-cmt"># Mouse window drag</span>
+bindm = <span class="c-var">$mainMod</span>, mouse:272, movewindow
+bindm = <span class="c-var">$mainMod</span>, mouse:273, resizewindow</pre>
+    </div>
+
+    <h3>Waybar config — AMD GPU temp module</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash</span></div>
+      <pre><span class="c-cmd">mkdir</span> <span class="c-flag">-p</span> <span class="c-path">~/.config/waybar</span></pre>
+    </div>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">json — ~/.config/waybar/config</span></div>
+      <pre>{
+    <span class="c-key">"layer"</span>: <span class="c-str">"top"</span>,
+    <span class="c-key">"position"</span>: <span class="c-str">"top"</span>,
+    <span class="c-key">"height"</span>: 34,
+    <span class="c-key">"modules-left"</span>: [<span class="c-str">"hyprland/workspaces"</span>],
+    <span class="c-key">"modules-center"</span>: [<span class="c-str">"clock"</span>],
+    <span class="c-key">"modules-right"</span>: [
+        <span class="c-str">"custom/gpu-temp"</span>, <span class="c-str">"cpu"</span>, <span class="c-str">"memory"</span>,
+        <span class="c-str">"network"</span>, <span class="c-str">"pulseaudio"</span>, <span class="c-str">"tray"</span>
+    ],
+
+    <span class="c-key">"hyprland/workspaces"</span>: {
+        <span class="c-key">"disable-scroll"</span>: true,
+        <span class="c-key">"all-outputs"</span>: true,
+        <span class="c-key">"format"</span>: <span class="c-str">"{icon}"</span>,
+        <span class="c-key">"format-icons"</span>: {
+            <span class="c-key">"1"</span>: <span class="c-str">"󰲡"</span>, <span class="c-key">"2"</span>: <span class="c-str">"󰲣"</span>, <span class="c-key">"3"</span>: <span class="c-str">"󰲥"</span>,
+            <span class="c-key">"4"</span>: <span class="c-str">"󰲧"</span>, <span class="c-key">"5"</span>: <span class="c-str">"󰲩"</span>,
+            <span class="c-key">"active"</span>: <span class="c-str">"󰮯"</span>, <span class="c-key">"default"</span>: <span class="c-str">"󰊠"</span>
+        }
+    },
+
+    <span class="c-key">"clock"</span>: {
+        <span class="c-key">"format"</span>: <span class="c-str">" {:%H:%M}"</span>,
+        <span class="c-key">"tooltip-format"</span>: <span class="c-str">"{:%A, %d %B %Y}"</span>
+    },
+
+    <span class="c-key">"custom/gpu-temp"</span>: {
+        <span class="c-key">"exec"</span>: <span class="c-str">"cat /sys/class/drm/card0/device/hwmon/hwmon*/temp1_input | awk '{printf \"󰢮 %d°C\", $1/1000}'"</span>,
+        <span class="c-key">"interval"</span>: 3,
+        <span class="c-key">"format"</span>: <span class="c-str">"{}"</span>
+    },
+
+    <span class="c-key">"cpu"</span>: { <span class="c-key">"format"</span>: <span class="c-str">" {usage}%"</span>, <span class="c-key">"interval"</span>: 2 },
+    <span class="c-key">"memory"</span>: { <span class="c-key">"format"</span>: <span class="c-str">" {used:.1f}G"</span> },
+
+    <span class="c-key">"network"</span>: {
+        <span class="c-key">"format-ethernet"</span>: <span class="c-str">"󰈀 {bandwidthDownBits}"</span>,
+        <span class="c-key">"format-disconnected"</span>: <span class="c-str">"󰖪 offline"</span>
+    },
+
+    <span class="c-key">"pulseaudio"</span>: {
+        <span class="c-key">"format"</span>: <span class="c-str">"{icon} {volume}%"</span>,
+        <span class="c-key">"format-muted"</span>: <span class="c-str">"󰝟"</span>,
+        <span class="c-key">"format-icons"</span>: { <span class="c-key">"default"</span>: [<span class="c-str">"󰕿"</span>, <span class="c-str">"󰖀"</span>, <span class="c-str">"󰕾"</span>] },
+        <span class="c-key">"on-click"</span>: <span class="c-str">"pavucontrol"</span>
+    },
+
+    <span class="c-key">"tray"</span>: { <span class="c-key">"spacing"</span>: 10 }
+}</pre>
+    </div>
+
+    <h3>Waybar style — AMD red accent theme</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">css — ~/.config/waybar/style.css</span></div>
+      <pre>* {
+    font-family: <span class="c-str">"JetBrainsMono Nerd Font"</span>;
+    font-size: 13px;
+    border: none;
+    border-radius: 0;
+}
+
+window#waybar {
+    background: rgba(10, 11, 15, 0.88);
+    color: <span class="c-str">#c8cedf</span>;
+    border-bottom: 1px solid rgba(224, 53, 43, 0.4);
+}
+
+#workspaces button {
+    padding: 0 8px;
+    color: <span class="c-str">#4a5068</span>;
+    background: transparent;
+    transition: all 0.2s ease;
+}
+
+#workspaces button.active {
+    color: <span class="c-str">#e0352b</span>;
+    text-shadow: 0 0 8px rgba(224, 53, 43, 0.6);
+}
+
+#workspaces button:hover {
+    color: <span class="c-str">#f47320</span>;
+    background: rgba(244, 115, 32, 0.1);
+}
+
+#clock {
+    color: <span class="c-str">#e8edf8</span>;
+    font-weight: bold;
+    letter-spacing: 0.05em;
+}
+
+#custom-gpu-temp { color: <span class="c-str">#f47320</span>; }
+#cpu             { color: <span class="c-str">#30c8e0</span>; }
+#memory          { color: <span class="c-str">#3ddc84</span>; }
+#network         { color: <span class="c-str">#c8cedf</span>; }
+#pulseaudio      { color: <span class="c-str">#c8cedf</span>; }
+
+#custom-gpu-temp, #cpu, #memory, #network, #pulseaudio, #tray {
+    padding: 0 10px;
+    margin: 3px 2px;
+    background: rgba(19, 22, 31, 0.6);
+    border-radius: 4px;
+}</pre>
+    </div>
+
+    <h3>Wallpaper setup with hyprpaper</h3>
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — ~/.config/hypr/hyprpaper.conf</span></div>
+      <pre><span class="c-key">preload</span> = <span class="c-path">~/.config/hypr/wallpapers/wall.jpg</span>
+<span class="c-key">wallpaper</span> = ,<span class="c-path">~/.config/hypr/wallpapers/wall.jpg</span>
+<span class="c-key">splash</span> = false</pre>
+    </div>
+
+    <h3>Launch Hyprland from TTY (dinit-compatible)</h3>
+    <p>Since you're using dinit (not systemd), the cleanest way to start Hyprland is directly from TTY1 via your shell profile — no display manager required:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">bash — ~/.bash_profile or ~/.zprofile</span></div>
+      <pre><span class="c-cmt"># Auto-launch Hyprland on TTY1 login</span>
+if [[ -z <span class="c-str">"$WAYLAND_DISPLAY"</span> ]] && [[ <span class="c-str">"$(tty)"</span> == <span class="c-str">"/dev/tty1"</span> ]]; then
+    <span class="c-key">export</span> <span class="c-var">XDG_CURRENT_DESKTOP</span>=Hyprland
+    <span class="c-key">export</span> <span class="c-var">XDG_SESSION_TYPE</span>=wayland
+    <span class="c-key">export</span> <span class="c-var">XDG_SESSION_DESKTOP</span>=Hyprland
+    <span class="c-key">export</span> <span class="c-var">QT_QPA_PLATFORM</span>=wayland
+    <span class="c-key">export</span> <span class="c-var">MOZ_ENABLE_WAYLAND</span>=1
+    <span class="c-key">exec</span> Hyprland
+fi</pre>
+    </div>
+
+    <div class="callout info">
+      <div class="callout-icon">ℹ</div>
+      <div class="callout-body"><strong>SDDM (optional)</strong>If you prefer a display manager, <code>sddm</code> works flawlessly with Hyprland. Install it, enable it in dinit (<code>dinitctl enable sddm</code>), and select the Hyprland session at login.</div>
+    </div>
+
+    <h3>dinit user service — start Hyprland support daemons</h3>
+    <p>Create a user dinit service to ensure the XDG portal and polkit agent start with your session:</p>
+
+    <div class="code-block">
+      <div class="code-header"><span class="lang">text — ~/.config/dinit.d/hyprland-session</span></div>
+      <pre><span class="c-key">type</span>       = <span class="c-str">scripted</span>
+<span class="c-key">command</span>    = <span class="c-path">/usr/lib/xdg-desktop-portal-hyprland</span>
+<span class="c-key">depends-on</span> = dbus</pre>
+    </div>
+
+    <div class="callout tip">
+      <div class="callout-icon">✦</div>
+      <div class="callout-body"><strong>Further ricing</strong>From this base, popular next steps are: <code>catppuccin</code> GTK/Qt themes via <code>nwg-look</code>, <code>swaylock-effects</code> for a blurred lock screen, <code>wlogout</code> for a logout menu, and <code>fastfetch</code> for a terminal splash. The Hyprland wiki's "Useful Utilities" page is the best ongoing reference.</div>
+    </div>
+
+  </section>
+
+</div><!-- end .wrapper -->
+
+<footer>
+  AMD RX 7800 XT · Artix Linux dinit · Mesa/RADV Open Source Stack &nbsp;|&nbsp; verify all package names against your current repo state
+</footer>
+
+</body>
+</html>
