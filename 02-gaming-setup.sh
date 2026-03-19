@@ -138,8 +138,9 @@ vm.swappiness = 10
 fs.inotify.max_user_watches = 524288
 
 # Scheduler latency tuning
-kernel.sched_min_granularity_ns  = 500000
-kernel.sched_wakeup_granularity_ns = 1000000
+# NOTE: sched_min_granularity_ns and sched_wakeup_granularity_ns are CFS knobs
+# that do not exist on the BORE/EEVDF scheduler used by CachyOS — omitted to
+# avoid sysctl errors at boot.
 
 # Required by Proton and many modern games (default 65530 is too low)
 vm.max_map_count = 2147483642
@@ -214,7 +215,6 @@ cat >> "$PROFILE_FILE" <<'EOF'
 
 # ── AMD RX 7800 XT gaming environment ─────────────────────────────────────
 export AMD_VULKAN_ICD=RADV
-export RADV_PERFTEST=aco,nggc
 export LIBVA_DRIVER_NAME=radeonsi
 export GBM_BACKEND=amdgpu
 export XDG_CURRENT_DESKTOP=Hyprland
@@ -222,8 +222,7 @@ export XDG_SESSION_TYPE=wayland
 export XDG_SESSION_DESKTOP=Hyprland
 export QT_QPA_PLATFORM=wayland
 export MOZ_ENABLE_WAYLAND=1
-export SDL_VIDEODRIVER=wayland
-export vblank_mode=0
+export SDL_VIDEODRIVER=wayland,x11
 
 # Auto-launch Hyprland on TTY1
 if [[ -z "$WAYLAND_DISPLAY" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
@@ -242,9 +241,15 @@ section "09 — GPU performance power profile (dinit oneshot)"
 
 sudo tee /usr/local/bin/amdgpu-perf.sh > /dev/null <<'EOF'
 #!/bin/sh
-# Set GPU to high performance + VR power profile at boot
-echo "high" > /sys/class/drm/card0/device/power_dpm_force_performance_level
-echo "5"    > /sys/class/drm/card0/device/pp_power_profile_mode
+# Set AMD GPU to high performance + VR power profile at boot.
+# Detects the AMD GPU dynamically to handle multi-GPU systems.
+for card in /sys/class/drm/card[0-9]*/device; do
+  [ -r "$card/vendor" ] || continue
+  [ "$(cat "$card/vendor")" = "0x1002" ] || continue
+  echo "high" > "$card/power_dpm_force_performance_level" 2>/dev/null
+  echo "5"    > "$card/pp_power_profile_mode" 2>/dev/null
+  break
+done
 EOF
 sudo chmod +x /usr/local/bin/amdgpu-perf.sh
 
@@ -301,8 +306,10 @@ sudo pacman -S --noconfirm steam
 
 info "Installing DXVK and VKD3D-Proton..."
 sudo pacman -S --noconfirm \
-  lib32-vkd3d vkd3d \
-  wine-staging winetricks
+  lib32-vkd3d vkd3d
+# NOTE: wine-staging and winetricks are intentionally omitted here.
+# Steam/Proton bundles its own Wine; installing system wine-staging can cause
+# library conflicts. Install them separately only if standalone Wine is needed.
 
 info "Installing protonup-qt (for Proton-GE management) from AUR..."
 paru -S --noconfirm protonup-qt
@@ -403,9 +410,9 @@ ok "PipeWire user dinit services written."
 # ── Wire audio into user dinit boot target ────────────────────────────────
 info "Enabling audio services in user dinit boot target..."
 mkdir -p "$HOME/.config/dinit.d/boot.d"
-ln -sf "$HOME/.config/dinit.d/pipewire"       "$HOME/.config/dinit.d/boot.d/pipewire"
-ln -sf "$HOME/.config/dinit.d/wireplumber"    "$HOME/.config/dinit.d/boot.d/wireplumber"
-ln -sf "$HOME/.config/dinit.d/pipewire-pulse" "$HOME/.config/dinit.d/boot.d/pipewire-pulse"
+# Link only the audio target — dinit pulls in pipewire, wireplumber, and
+# pipewire-pulse automatically via the depends-on chain defined above.
+ln -sf "$HOME/.config/dinit.d/audio" "$HOME/.config/dinit.d/boot.d/audio"
 ok "Audio services linked into user boot target."
 
 # Ensure user is in audio group
@@ -569,7 +576,7 @@ cat > "$HOME/.config/waybar/config" <<'EOF'
     },
 
     "custom/gpu-temp": {
-        "exec": "cat /sys/class/drm/card0/device/hwmon/hwmon*/temp1_input 2>/dev/null | awk '{printf \"󰢮 %d°C\", $1/1000}'",
+        "exec": "for d in /sys/class/drm/card[0-9]*/device; do [ -r \"$d/vendor\" ] || continue; read v < \"$d/vendor\"; [ \"$v\" = \"0x1002\" ] || continue; awk 'NR==1{printf \"󰢮 %d°C\", $1/1000}' \"$d\"/hwmon/hwmon*/temp1_input 2>/dev/null; break; done",
         "interval": 3,
         "format": "{}"
     },
@@ -718,7 +725,7 @@ echo -e "${GREEN}${BOLD}║  8. Run: vulkaninfo --summary   to verify RADV      
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════════════════╝${RESET}"
 echo
 echo -e "  ${ORANGE}Steam launch options for best AMD performance:${RESET}"
-echo -e "  ${CYAN}RADV_PERFTEST=nggc,aco DXVK_ASYNC=1 gamemoderun mangohud %command%${RESET}"
+echo -e "  ${CYAN}gamemoderun mangohud %command%${RESET}"
 echo
 
 read -rp "Reboot now? [y/N]: " do_reboot
