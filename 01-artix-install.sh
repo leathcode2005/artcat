@@ -28,7 +28,7 @@ EFI_SIZE="512M"              # EFI partition size
 SWAP_SIZE="8G"               # Swap partition size
                              # Root gets the remainder of the disk
 
-HOSTNAME="artix-gaming"
+TARGET_HOSTNAME="artix-gaming"
 TIMEZONE="America/Chicago"   # e.g. Europe/London, Asia/Tokyo
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
@@ -60,8 +60,11 @@ ping -c1 artixlinux.org &>/dev/null \
 
 [[ -b "$DISK" ]] || die "Disk $DISK not found. Edit DISK= in this script."
 
+# Validate USERNAME length fits within the completion box (max 32 chars)
+[[ ${#USERNAME} -le 32 ]] || die "USERNAME '${USERNAME}' is too long (max 32 chars). Edit USERNAME= in this script."
+
 info "Disk:     $DISK"
-info "Hostname: $HOSTNAME"
+info "Hostname: $TARGET_HOSTNAME"
 info "User:     $USERNAME"
 info "TZ:       $TIMEZONE"
 echo
@@ -86,15 +89,15 @@ fi
 info "Creating GPT partition table..."
 parted -s "$DISK" mklabel gpt
 
-info "Creating EFI partition ($EFI_SIZE)..."
-parted -s "$DISK" mkpart ESP fat32 1MiB "$EFI_SIZE"
-parted -s "$DISK" set 1 esp on
-
-# Compute exact partition boundaries from EFI_SIZE and SWAP_SIZE
+# Compute exact partition boundaries from EFI_SIZE and SWAP_SIZE (all in MiB for consistency)
 EFI_MIB="${EFI_SIZE//[Mm]*/}"                      # numeric MiB value of EFI partition
 SWAP_MIB="$((${SWAP_SIZE//[Gg]*/} * 1024))"        # SWAP_SIZE converted to MiB
 SWAP_START="${EFI_MIB}MiB"                         # swap begins right after EFI
 SWAP_END="$((EFI_MIB + SWAP_MIB))MiB"             # swap ends at EFI + SWAP size
+
+info "Creating EFI partition ($EFI_SIZE)..."
+parted -s "$DISK" mkpart ESP fat32 1MiB "${EFI_MIB}MiB"
+parted -s "$DISK" set 1 esp on
 
 info "Creating swap partition ($SWAP_SIZE)..."
 parted -s "$DISK" mkpart swap linux-swap "$SWAP_START" "$SWAP_END"
@@ -104,6 +107,11 @@ parted -s "$DISK" mkpart root ext4 "$SWAP_END" 100%
 
 ok "Partition table written."
 parted -s "$DISK" print
+
+# Allow the kernel to re-read the new partition table before formatting
+sleep 1
+partprobe "$DISK" 2>/dev/null || true
+sleep 1
 
 # ── FORMAT ────────────────────────────────────────────────────────────────────
 section "Formatting partitions"
@@ -180,12 +188,12 @@ echo "KEYMAP=${KEYMAP}" > /etc/vconsole.conf
 ok "Locale set."
 
 # ── Hostname
-info "Setting hostname: ${HOSTNAME}"
-echo "${HOSTNAME}" > /etc/hostname
+info "Setting hostname: ${TARGET_HOSTNAME}"
+echo "${TARGET_HOSTNAME}" > /etc/hostname
 cat > /etc/hosts <<EOF
 127.0.0.1   localhost
 ::1         localhost
-127.0.1.1   ${HOSTNAME}.localdomain ${HOSTNAME}
+127.0.1.1   ${TARGET_HOSTNAME}.localdomain ${TARGET_HOSTNAME}
 EOF
 ok "Hostname set."
 
@@ -221,8 +229,8 @@ ROOT_PARTUUID=\$(blkid -s PARTUUID -o value ${PART_ROOT})
 info "Root PARTUUID: \${ROOT_PARTUUID}"
 
 cat > /boot/refind_linux.conf <<EOF
-"Artix Linux (default)"  "root=PARTUUID=\${ROOT_PARTUUID} rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt"
-"Artix Linux (fallback)" "root=PARTUUID=\${ROOT_PARTUUID} rw initrd=/boot/initramfs-linux-fallback.img"
+"Artix Linux (default)"  "root=PARTUUID=\${ROOT_PARTUUID} rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt initrd=/boot/amd-ucode.img initrd=/boot/initramfs-linux.img"
+"Artix Linux (fallback)" "root=PARTUUID=\${ROOT_PARTUUID} rw initrd=/boot/amd-ucode.img initrd=/boot/initramfs-linux-fallback.img"
 EOF
 ok "refind_linux.conf written."
 
@@ -245,7 +253,7 @@ SCRIPT2_SRC="$(dirname "$(realpath "$0")")/02-gaming-setup.sh"
 if [[ -f "$SCRIPT2_SRC" ]]; then
   cp "$SCRIPT2_SRC" /mnt/home/"$USERNAME"/02-gaming-setup.sh
   chmod +x /mnt/home/"$USERNAME"/02-gaming-setup.sh
-  chown 1000:1000 /mnt/home/"$USERNAME"/02-gaming-setup.sh 2>/dev/null || true
+  artix-chroot /mnt chown "$USERNAME:$USERNAME" /home/"$USERNAME"/02-gaming-setup.sh 2>/dev/null || true
   ok "02-gaming-setup.sh copied to /home/$USERNAME/"
 else
   warn "02-gaming-setup.sh not found next to this script."
@@ -264,7 +272,7 @@ echo -e "${GREEN}${BOLD}║  Artix installation complete!                    ║
 echo -e "${GREEN}${BOLD}║                                                  ║${RESET}"
 echo -e "${GREEN}${BOLD}║  1. Remove the USB drive                         ║${RESET}"
 echo -e "${GREEN}${BOLD}║  2. System will reboot into rEFInd               ║${RESET}"
-echo -e "${GREEN}${BOLD}║  3. Log in as: ${USERNAME}                       ║${RESET}"
+printf  "${GREEN}${BOLD}║  3. Log in as: %-32s║${RESET}\n" "$USERNAME"
 echo -e "${GREEN}${BOLD}║  4. Run: bash ~/02-gaming-setup.sh               ║${RESET}"
 echo -e "${GREEN}${BOLD}╚══════════════════════════════════════════════════╝${RESET}"
 echo
