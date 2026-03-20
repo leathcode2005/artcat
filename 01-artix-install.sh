@@ -33,7 +33,7 @@ TIMEZONE="America/Chicago"   # e.g. Europe/London, Asia/Tokyo
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
 
-USERNAME="user"              # Your login username
+# USERNAME is prompted interactively — see User Setup section below
 # Passwords are prompted interactively — not stored in this script
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -58,8 +58,26 @@ ls /sys/firmware/efi/efivars &>/dev/null \
 ping -c1 artixlinux.org &>/dev/null \
   || die "No internet connection. Connect via ethernet or run connmanctl first."
 
-# Validate USERNAME length fits within the completion box (max 32 chars)
-[[ ${#USERNAME} -le 32 ]] || die "USERNAME '${USERNAME}' is too long (max 32 chars). Edit USERNAME= in this script."
+# ── Dependency check
+info "Checking required tools..."
+MISSING=()
+for cmd in parted mkfs.fat mkswap mkfs.ext4 blkid partprobe lsblk basestrap artix-chroot fstabgen; do
+  command -v "$cmd" &>/dev/null || MISSING+=("$cmd")
+done
+if [[ ${#MISSING[@]} -gt 0 ]]; then
+  die "Missing required tools: ${MISSING[*]}. Install them before running this script."
+fi
+ok "All required tools found."
+
+# ── USER SETUP ────────────────────────────────────────────────────────────
+section "User Setup"
+
+read -rp "Enter the username for the new user: " USERNAME
+[[ -n "$USERNAME" ]] || die "Username cannot be empty."
+USERNAME="${USERNAME,,}"  # convert to lowercase
+[[ "$USERNAME" =~ ^[a-z_][a-z0-9_-]*$ ]] || die "Invalid username '${USERNAME}'. Use lowercase letters, digits, hyphens, or underscores."
+[[ ${#USERNAME} -le 32 ]] || die "Username '${USERNAME}' is too long (max 32 chars)."
+ok "Username set: $USERNAME"
 
 # ── DISK SELECTION ────────────────────────────────────────────────────────────
 section "Disk Selection"
@@ -159,6 +177,7 @@ basestrap /mnt \
   networkmanager networkmanager-dinit \
   neovim git curl wget bash-completion \
   efibootmgr refind \
+  doas \
   sudo
 
 ok "Base system installed."
@@ -221,6 +240,16 @@ useradd -mG wheel,audio,video,input,storage,games -s /bin/bash "${USERNAME}"
 # ── Sudo
 sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 ok "Sudo configured for wheel group."
+
+# ── Doas
+info "Configuring doas for wheel group..."
+cat > /etc/doas.conf <<DOAS
+permit persist :wheel
+DOAS
+chown root:root /etc/doas.conf
+chmod 0400 /etc/doas.conf
+[[ -s /etc/doas.conf ]] || { echo "FAIL: /etc/doas.conf is empty"; exit 1; }
+ok "Doas configured for wheel group."
 
 # ── NetworkManager via dinit
 info "Enabling NetworkManager service..."
