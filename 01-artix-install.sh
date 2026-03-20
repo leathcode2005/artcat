@@ -23,7 +23,7 @@
 set -euo pipefail
 
 # ── USER CONFIGURATION ────────────────────────────────────────────────────────
-DISK="/dev/nvme0n1"          # Target disk  (check with: lsblk)
+# DISK is selected interactively at runtime — see Disk Selection section below
 EFI_SIZE="512M"              # EFI partition size
 SWAP_SIZE="8G"               # Swap partition size
                              # Root gets the remainder of the disk
@@ -58,10 +58,17 @@ ls /sys/firmware/efi/efivars &>/dev/null \
 ping -c1 artixlinux.org &>/dev/null \
   || die "No internet connection. Connect via ethernet or run connmanctl first."
 
-[[ -b "$DISK" ]] || die "Disk $DISK not found. Edit DISK= in this script."
-
 # Validate USERNAME length fits within the completion box (max 32 chars)
 [[ ${#USERNAME} -le 32 ]] || die "USERNAME '${USERNAME}' is too long (max 32 chars). Edit USERNAME= in this script."
+
+# ── DISK SELECTION ────────────────────────────────────────────────────────────
+section "Disk Selection"
+
+echo "Available block devices:"
+lsblk -dpno NAME,SIZE,MODEL | grep -v "loop" || true
+echo
+read -rp "Enter the target disk (e.g. /dev/nvme0n1, /dev/sda): " DISK
+[[ -b "$DISK" ]] || die "Disk $DISK not found."
 
 info "Disk:     $DISK"
 info "Hostname: $TARGET_HOSTNAME"
@@ -146,7 +153,8 @@ info "This may take a few minutes..."
 basestrap /mnt \
   base base-devel \
   dinit dinit-rc \
-  linux linux-headers linux-firmware \
+  linux linux-headers \
+  linux-firmware-amdgpu linux-firmware-whence \
   amd-ucode \
   networkmanager networkmanager-dinit \
   neovim git curl wget bash-completion \
