@@ -51,11 +51,49 @@ read -rp "Press ENTER to begin or Ctrl+C to abort..."
 section "01 — System update"
 # ═════════════════════════════════════════════════════════════════════════════
 
+info "Performing Artix-only base update (Arch repos not yet configured)..."
 doas pacman -Syu --noconfirm
 ok "System updated."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "02 — CachyOS repositories"
+section "02 — Arch Linux repo bridge (artix-archlinux-support)"
+# ═════════════════════════════════════════════════════════════════════════════
+
+info "Installing artix-archlinux-support bridge package..."
+doas pacman -S --noconfirm artix-archlinux-support
+
+info "Adding Arch [extra] and [multilib] repo blocks to /etc/pacman.conf..."
+if ! grep -q '^\[extra\]' /etc/pacman.conf; then
+  doas tee -a /etc/pacman.conf > /dev/null <<'ARCHREPOS'
+
+[extra]
+Include = /etc/pacman.d/mirrorlist-arch
+ARCHREPOS
+  ok "Arch [extra] repo block added to /etc/pacman.conf."
+else
+  info "Arch [extra] repo block already present in /etc/pacman.conf — skipping."
+fi
+
+if ! grep -q '^\[multilib\]' /etc/pacman.conf; then
+  doas tee -a /etc/pacman.conf > /dev/null <<'ARCHREPOS'
+
+[multilib]
+Include = /etc/pacman.d/mirrorlist-arch
+ARCHREPOS
+  ok "Arch [multilib] repo block added to /etc/pacman.conf."
+else
+  info "Arch [multilib] repo block already present in /etc/pacman.conf — skipping."
+fi
+
+info "Populating and trusting Arch Linux keys..."
+doas pacman-key --populate archlinux
+
+info "Syncing package databases with Arch repos..."
+doas pacman -Sy --noconfirm
+ok "Arch Linux repos configured and databases synced."
+
+# ═════════════════════════════════════════════════════════════════════════════
+section "03 — CachyOS repositories"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Detecting CPU x86-64 micro-architecture level..."
@@ -79,21 +117,23 @@ else
   warn "CPU is x86-64-v2 or lower — using base CachyOS repo only"
 fi
 
-info "Installing CachyOS keyring and mirrorlist..."
-cd /tmp
-curl -sO https://mirror.cachyos.org/cachyos-repo.tar.xz
-tar xf cachyos-repo.tar.xz
-cd cachyos-repo
-doas ./cachyos-repo.sh
+info "Downloading CachyOS repo installer..."
+CACHYOS_TAR="/tmp/cachyos-repo.tar.xz"
+curl -fSL "https://mirror.cachyos.org/cachyos-repo.tar.xz" -o "$CACHYOS_TAR" 2>/dev/null \
+  || curl -fSL "https://cachyos.org/repo/cachyos-repo.tar.xz" -o "$CACHYOS_TAR" \
+  || die "Failed to download CachyOS repo tarball. Check https://cachyos.org/repo/ for the current URL."
+
+rm -rf /tmp/cachyos-repo
+tar xf "$CACHYOS_TAR" -C /tmp
+cd /tmp/cachyos-repo
+doas ./cachyos-repo.sh || die "CachyOS repo installer script failed."
 cd ~
+rm -f "$CACHYOS_TAR"
 
 ok "CachyOS repositories added to /etc/pacman.conf."
 
-doas pacman -Sy --noconfirm
-ok "Package databases synced."
-
 # ═════════════════════════════════════════════════════════════════════════════
-section "03 — CachyOS kernel (linux-cachyos)"
+section "04 — CachyOS kernel (linux-cachyos)"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing linux-cachyos (BORE+EEVDF scheduler)..."
@@ -129,7 +169,7 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "04 — Gaming sysctl tweaks"
+section "05 — Gaming sysctl tweaks"
 # ═════════════════════════════════════════════════════════════════════════════
 
 doas tee /etc/sysctl.d/99-gaming.conf > /dev/null <<'EOF'
@@ -152,12 +192,8 @@ doas sysctl --system
 ok "sysctl gaming tweaks applied."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "05 — Mesa / AMDGPU driver stack"
+section "06 — Mesa / AMDGPU driver stack"
 # ═════════════════════════════════════════════════════════════════════════════
-
-info "Enabling multilib repository..."
-doas sed -i '/^#\[multilib\]/,/^#Include/{s/^#//}' /etc/pacman.conf
-doas pacman -Sy --noconfirm
 
 info "Installing Mesa and AMDGPU stack..."
 doas pacman -S --noconfirm \
@@ -170,7 +206,7 @@ doas pacman -S --noconfirm \
 ok "Mesa/AMDGPU driver stack installed."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "06 — Vulkan / RADV"
+section "07 — Vulkan / RADV"
 # ═════════════════════════════════════════════════════════════════════════════
 
 doas pacman -S --noconfirm \
@@ -186,7 +222,7 @@ vulkaninfo --summary 2>/dev/null | grep -i "AMD\|RADV\|7800" \
   || warn "vulkaninfo returned no AMD device — verify after reboot into cachyos kernel."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "07 — dinit services"
+section "08 — dinit services"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing dbus and polkit..."
@@ -204,7 +240,7 @@ mkdir -p "$HOME/.config/dinit.d"
 ok "dinit base services configured."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "08 — Environment variables"
+section "09 — Environment variables"
 # ═════════════════════════════════════════════════════════════════════════════
 
 PROFILE_FILE="$HOME/.bash_profile"
@@ -238,7 +274,7 @@ fi
 ok "Environment variables written to ${PROFILE_FILE}."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "09 — GPU performance power profile (dinit oneshot)"
+section "10 — GPU performance power profile (dinit oneshot)"
 # ═════════════════════════════════════════════════════════════════════════════
 
 doas tee /usr/local/bin/amdgpu-perf.sh > /dev/null <<'EOF'
@@ -265,7 +301,7 @@ doas dinitctl enable amdgpu-perf
 ok "amdgpu-perf dinit service installed and enabled."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "10 — GameMode + MangoHud"
+section "11 — GameMode + MangoHud"
 # ═════════════════════════════════════════════════════════════════════════════
 
 doas pacman -S --noconfirm gamemode lib32-gamemode mangohud lib32-mangohud
@@ -283,7 +319,7 @@ EOF
 ok "GameMode + MangoHud installed."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "11 — AUR helper (paru)"
+section "12 — AUR helper (paru)"
 # ═════════════════════════════════════════════════════════════════════════════
 
 if ! command -v paru &>/dev/null; then
@@ -300,7 +336,7 @@ else
 fi
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "12 — Steam + Proton-GE"
+section "13 — Steam + Proton-GE"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing Steam..."
@@ -320,7 +356,7 @@ ok "Steam and Proton toolchain installed."
 warn "Open protonup-qt after first boot to install Proton-GE, then restart Steam."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "13 — Hyprland rice"
+section "14 — Hyprland rice"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing Hyprland and rice stack..."
@@ -345,7 +381,7 @@ doas pacman -S --noconfirm \
   pavucontrol
 
 # ── Audio stack ───────────────────────────────────────────────────────────
-section "13a — Audio (PipeWire)"
+section "14a — Audio (PipeWire)"
 
 info "Installing full PipeWire audio stack..."
 doas pacman -S --noconfirm \
@@ -673,7 +709,7 @@ EOF
 ok "Hyprland rice configs written."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "14 — CoreCtrl (GPU overclocking GUI)"
+section "15 — CoreCtrl (GPU overclocking GUI)"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing corectrl from AUR..."
@@ -700,7 +736,7 @@ fi
 ok "CoreCtrl installed with polkit rule."
 
 # ═════════════════════════════════════════════════════════════════════════════
-section "15 — radeontop"
+section "16 — radeontop"
 # ═════════════════════════════════════════════════════════════════════════════
 
 doas pacman -S --noconfirm radeontop
