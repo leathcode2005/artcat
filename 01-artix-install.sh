@@ -28,7 +28,7 @@ EFI_SIZE="512M"              # EFI partition size
 SWAP_SIZE="8G"               # Swap partition size
                              # Root gets the remainder of the disk
 
-TARGET_HOSTNAME="artix-gaming"
+# TARGET_HOSTNAME is prompted interactively — see User Setup section below
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
 
@@ -85,6 +85,13 @@ read -rp "Enter your timezone [${DEFAULT_TIMEZONE}]: " input_tz
 TIMEZONE="${input_tz:-$DEFAULT_TIMEZONE}"
 [[ -f "/usr/share/zoneinfo/$TIMEZONE" ]] || die "Invalid timezone '${TIMEZONE}'. Check /usr/share/zoneinfo/."
 ok "Timezone set: $TIMEZONE"
+
+DEFAULT_HOSTNAME="artix-gaming"
+read -rp "Enter hostname [${DEFAULT_HOSTNAME}]: " input_hostname
+TARGET_HOSTNAME="${input_hostname:-$DEFAULT_HOSTNAME}"
+# Validate: lowercase letters, digits, hyphens only; max 63 chars; must not start/end with hyphen
+[[ "$TARGET_HOSTNAME" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || die "Invalid hostname '${TARGET_HOSTNAME}'. Use lowercase letters, digits, and hyphens only (no leading/trailing hyphens, max 63 chars)."
+ok "Hostname set: $TARGET_HOSTNAME"
 
 # ── DISK SELECTION ────────────────────────────────────────────────────────────
 section "Disk Selection"
@@ -193,8 +200,7 @@ for ((attempt=1; attempt<=BASESTRAP_ATTEMPTS; attempt++)); do
       networkmanager networkmanager-dinit \
       neovim git curl wget bash-completion \
       efibootmgr refind \
-      doas \
-      sudo; then
+      doas; then
     ok "Base system installed."
     break
   else
@@ -262,10 +268,6 @@ ok "initramfs built with amdgpu."
 # ── Create user
 info "Creating user: ${USERNAME}"
 useradd -mG wheel,audio,video,input,storage,games -s /bin/bash "${USERNAME}"
-
-# ── Sudo
-sed -i 's/# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
-ok "Sudo configured for wheel group."
 
 # ── Doas
 info "Configuring doas for wheel group..."

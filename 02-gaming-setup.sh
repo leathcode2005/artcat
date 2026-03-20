@@ -7,7 +7,7 @@
 #  Run this AFTER rebooting into your fresh Artix install:
 #    bash ~/02-gaming-setup.sh
 #
-#  Run as your regular user (sudo access required — NOT as root directly).
+#  Run as your regular user (doas access required — NOT as root directly).
 # =============================================================================
 
 set -euo pipefail
@@ -25,9 +25,11 @@ die()     { echo -e "${RED}${BOLD}[FAIL]${RESET}  $*" >&2; exit 1; }
 # ── PRE-FLIGHT ────────────────────────────────────────────────────────────────
 section "Pre-flight checks"
 
-[[ $EUID -eq 0 ]] && die "Do NOT run as root. Run as your regular user with sudo access."
+[[ $EUID -eq 0 ]] && die "Do NOT run as root. Run as your regular user with doas access."
 
-sudo -v || die "This script requires sudo access."
+command -v doas &>/dev/null || die "doas not found. Ensure doas is installed and configured for your user."
+# Verify doas works
+doas true || die "doas is not configured correctly for your user."
 
 ping -c1 archlinux.org &>/dev/null \
   || die "No internet. Check: nmcli device status / nmcli device wifi connect <SSID> password <pass>"
@@ -49,7 +51,7 @@ read -rp "Press ENTER to begin or Ctrl+C to abort..."
 section "01 — System update"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo pacman -Syu --noconfirm
+doas pacman -Syu --noconfirm
 ok "System updated."
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -82,12 +84,12 @@ cd /tmp
 curl -sO https://mirror.cachyos.org/cachyos-repo.tar.xz
 tar xf cachyos-repo.tar.xz
 cd cachyos-repo
-sudo ./cachyos-repo.sh
+doas ./cachyos-repo.sh
 cd ~
 
 ok "CachyOS repositories added to /etc/pacman.conf."
 
-sudo pacman -Sy --noconfirm
+doas pacman -Sy --noconfirm
 ok "Package databases synced."
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -95,19 +97,19 @@ section "03 — CachyOS kernel (linux-cachyos)"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing linux-cachyos (BORE+EEVDF scheduler)..."
-sudo pacman -S --noconfirm linux-cachyos linux-cachyos-headers
+doas pacman -S --noconfirm linux-cachyos linux-cachyos-headers
 
 info "Updating linux-firmware (RDNA3 requires latest blobs)..."
-sudo pacman -S --noconfirm linux-firmware
+doas pacman -S --noconfirm linux-firmware
 
 info "Rebuilding initramfs for all kernels..."
-sudo mkinitcpio -P
+doas mkinitcpio -P
 
 # Update refind_linux.conf to include cachyos entries
 ROOT_PARTUUID=$(findmnt -n -o PARTUUID /)
 info "Root PARTUUID: ${ROOT_PARTUUID}"
 
-sudo tee /boot/refind_linux.conf > /dev/null <<EOF
+doas tee /boot/refind_linux.conf > /dev/null <<EOF
 "CachyOS BORE+EEVDF (default)" "root=PARTUUID=${ROOT_PARTUUID} rw quiet amdgpu.ppfeaturemask=0xffffffff amd_pstate=active iommu=pt initrd=/boot/amd-ucode.img initrd=/boot/initramfs-linux-cachyos.img"
 "CachyOS (fallback)"           "root=PARTUUID=${ROOT_PARTUUID} rw initrd=/boot/amd-ucode.img initrd=/boot/initramfs-linux-cachyos-fallback.img"
 "Artix linux (fallback)"       "root=PARTUUID=${ROOT_PARTUUID} rw initrd=/boot/amd-ucode.img initrd=/boot/initramfs-linux-fallback.img"
@@ -130,7 +132,7 @@ fi
 section "04 — Gaming sysctl tweaks"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo tee /etc/sysctl.d/99-gaming.conf > /dev/null <<'EOF'
+doas tee /etc/sysctl.d/99-gaming.conf > /dev/null <<'EOF'
 # Reduce swap aggressiveness
 vm.swappiness = 10
 
@@ -146,7 +148,7 @@ fs.inotify.max_user_watches = 524288
 vm.max_map_count = 2147483642
 EOF
 
-sudo sysctl --system
+doas sysctl --system
 ok "sysctl gaming tweaks applied."
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -154,11 +156,11 @@ section "05 — Mesa / AMDGPU driver stack"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Enabling multilib repository..."
-sudo sed -i '/^#\[multilib\]/,/^#Include/{s/^#//}' /etc/pacman.conf
-sudo pacman -Sy --noconfirm
+doas sed -i '/^#\[multilib\]/,/^#Include/{s/^#//}' /etc/pacman.conf
+doas pacman -Sy --noconfirm
 
 info "Installing Mesa and AMDGPU stack..."
-sudo pacman -S --noconfirm \
+doas pacman -S --noconfirm \
   mesa lib32-mesa \
   xf86-video-amdgpu \
   libdrm lib32-libdrm \
@@ -171,7 +173,7 @@ ok "Mesa/AMDGPU driver stack installed."
 section "06 — Vulkan / RADV"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo pacman -S --noconfirm \
+doas pacman -S --noconfirm \
   vulkan-radeon lib32-vulkan-radeon \
   vulkan-icd-loader lib32-vulkan-icd-loader \
   vulkan-tools
@@ -188,13 +190,13 @@ section "07 — dinit services"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing dbus and polkit..."
-sudo pacman -S --noconfirm dbus polkit
+doas pacman -S --noconfirm dbus polkit
 
 info "Enabling dbus and polkit via dinit..."
-sudo dinitctl enable dbus
-sudo dinitctl enable polkit
-sudo dinitctl start dbus  || true
-sudo dinitctl start polkit || true
+doas dinitctl enable dbus
+doas dinitctl enable polkit
+doas dinitctl start dbus  || true
+doas dinitctl start polkit || true
 
 info "Setting up user dinit service directory..."
 mkdir -p "$HOME/.config/dinit.d"
@@ -239,7 +241,7 @@ ok "Environment variables written to ${PROFILE_FILE}."
 section "09 — GPU performance power profile (dinit oneshot)"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo tee /usr/local/bin/amdgpu-perf.sh > /dev/null <<'EOF'
+doas tee /usr/local/bin/amdgpu-perf.sh > /dev/null <<'EOF'
 #!/bin/sh
 # Set AMD GPU to high performance + VR power profile at boot.
 # Detects the AMD GPU dynamically to handle multi-GPU systems.
@@ -251,25 +253,25 @@ for card in /sys/class/drm/card[0-9]*/device; do
   break
 done
 EOF
-sudo chmod +x /usr/local/bin/amdgpu-perf.sh
+doas chmod +x /usr/local/bin/amdgpu-perf.sh
 
-sudo tee /etc/dinit.d/amdgpu-perf > /dev/null <<'EOF'
+doas tee /etc/dinit.d/amdgpu-perf > /dev/null <<'EOF'
 type       = scripted
 command    = /usr/local/bin/amdgpu-perf.sh
 depends-on = udev
 EOF
 
-sudo dinitctl enable amdgpu-perf
+doas dinitctl enable amdgpu-perf
 ok "amdgpu-perf dinit service installed and enabled."
 
 # ═════════════════════════════════════════════════════════════════════════════
 section "10 — GameMode + MangoHud"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo pacman -S --noconfirm gamemode lib32-gamemode mangohud lib32-mangohud
+doas pacman -S --noconfirm gamemode lib32-gamemode mangohud lib32-mangohud
 
 info "Adding $USER to gamemode group..."
-sudo usermod -aG gamemode "$USER"
+doas usermod -aG gamemode "$USER"
 
 info "Creating user dinit service for gamemoded..."
 cat > "$HOME/.config/dinit.d/gamemoded" <<'EOF'
@@ -302,10 +304,10 @@ section "12 — Steam + Proton-GE"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing Steam..."
-sudo pacman -S --noconfirm steam
+doas pacman -S --noconfirm steam
 
 info "Installing DXVK and VKD3D-Proton..."
-sudo pacman -S --noconfirm \
+doas pacman -S --noconfirm \
   lib32-vkd3d vkd3d
 # NOTE: wine-staging and winetricks are intentionally omitted here.
 # Steam/Proton bundles its own Wine; installing system wine-staging can cause
@@ -322,7 +324,7 @@ section "13 — Hyprland rice"
 # ═════════════════════════════════════════════════════════════════════════════
 
 info "Installing Hyprland and rice stack..."
-sudo pacman -S --noconfirm \
+doas pacman -S --noconfirm \
   hyprland \
   xorg-xwayland \
   waybar \
@@ -346,7 +348,7 @@ sudo pacman -S --noconfirm \
 section "13a — Audio (PipeWire)"
 
 info "Installing full PipeWire audio stack..."
-sudo pacman -S --noconfirm \
+doas pacman -S --noconfirm \
   pipewire \
   pipewire-audio \
   pipewire-alsa \
@@ -367,7 +369,7 @@ amixer sset Master 100% 2>/dev/null   || true
 amixer sset Speaker unmute 2>/dev/null || true
 amixer sset Headphone unmute 2>/dev/null || true
 # Persist ALSA state across reboots
-sudo alsactl store 2>/dev/null || true
+doas alsactl store 2>/dev/null || true
 ok "ALSA unmuted and state saved."
 
 # ── User dinit audio services ─────────────────────────────────────────────
@@ -417,7 +419,7 @@ ok "Audio services linked into user boot target."
 
 # Ensure user is in audio group
 info "Adding $USER to audio group..."
-sudo usermod -aG audio "$USER"
+doas usermod -aG audio "$USER"
 ok "User added to audio group."
 
 # ── Hyprland config ───────────────────────────────────────────────────────
@@ -679,10 +681,10 @@ paru -S --noconfirm corectrl
 
 info "Installing polkit rule for CoreCtrl (no-password GPU control)..."
 if [[ -f /usr/share/polkit-1/rules.d/90-corectrl.rules ]]; then
-  sudo cp /usr/share/polkit-1/rules.d/90-corectrl.rules \
+  doas cp /usr/share/polkit-1/rules.d/90-corectrl.rules \
           /etc/polkit-1/rules.d/90-corectrl.rules
 else
-  sudo tee /etc/polkit-1/rules.d/90-corectrl.rules > /dev/null <<'EOF'
+  doas tee /etc/polkit-1/rules.d/90-corectrl.rules > /dev/null <<'EOF'
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.corectrl.helper.init" ||
          action.id == "org.corectrl.helperkiller.init") &&
@@ -701,7 +703,7 @@ ok "CoreCtrl installed with polkit rule."
 section "15 — radeontop"
 # ═════════════════════════════════════════════════════════════════════════════
 
-sudo pacman -S --noconfirm radeontop
+doas pacman -S --noconfirm radeontop
 ok "radeontop installed (run: radeontop)"
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -729,4 +731,4 @@ echo -e "  ${CYAN}gamemoderun mangohud %command%${RESET}"
 echo
 
 read -rp "Reboot now? [y/N]: " do_reboot
-[[ "$do_reboot" =~ ^[Yy]$ ]] && sudo reboot
+[[ "$do_reboot" =~ ^[Yy]$ ]] && doas reboot
