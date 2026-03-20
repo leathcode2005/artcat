@@ -29,7 +29,6 @@ SWAP_SIZE="8G"               # Swap partition size
                              # Root gets the remainder of the disk
 
 TARGET_HOSTNAME="artix-gaming"
-TIMEZONE="America/Chicago"   # e.g. Europe/London, Asia/Tokyo
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
 
@@ -79,6 +78,14 @@ USERNAME="${USERNAME,,}"  # convert to lowercase
 [[ ${#USERNAME} -le 32 ]] || die "Username '${USERNAME}' is too long (max 32 chars)."
 ok "Username set: $USERNAME"
 
+DEFAULT_TIMEZONE="America/Chicago"
+echo "Available timezones: find /usr/share/zoneinfo -type f | sed 's|/usr/share/zoneinfo/||' | sort"
+echo "Example: America/Chicago, Europe/London, Asia/Tokyo"
+read -rp "Enter your timezone [${DEFAULT_TIMEZONE}]: " input_tz
+TIMEZONE="${input_tz:-$DEFAULT_TIMEZONE}"
+[[ -f "/usr/share/zoneinfo/$TIMEZONE" ]] || die "Invalid timezone '${TIMEZONE}'. Check /usr/share/zoneinfo/."
+ok "Timezone set: $TIMEZONE"
+
 # ── DISK SELECTION ────────────────────────────────────────────────────────────
 section "Disk Selection"
 
@@ -96,6 +103,13 @@ echo
 warn "THIS WILL ERASE ALL DATA ON $DISK"
 read -rp "Type YES to continue: " confirm
 [[ "$confirm" == "YES" ]] || die "Aborted."
+
+section "Cleaning up any previous mounts on $DISK"
+# Turn off swap on this disk if active
+swapoff "${DISK}"* 2>/dev/null || true
+# Unmount anything under /mnt
+umount -R /mnt 2>/dev/null || true
+ok "Pre-install cleanup done."
 
 # ── PARTITIONING ──────────────────────────────────────────────────────────────
 section "Partitioning $DISK"
@@ -168,19 +182,31 @@ section "Installing base system (basestrap)"
 
 info "This may take a few minutes..."
 
-basestrap /mnt \
-  base base-devel \
-  dinit dinit-rc \
-  linux linux-headers \
-  linux-firmware-amdgpu linux-firmware-whence \
-  amd-ucode \
-  networkmanager networkmanager-dinit \
-  neovim git curl wget bash-completion \
-  efibootmgr refind \
-  doas \
-  sudo
-
-ok "Base system installed."
+BASESTRAP_ATTEMPTS=3
+for ((attempt=1; attempt<=BASESTRAP_ATTEMPTS; attempt++)); do
+  if basestrap /mnt \
+      base base-devel \
+      dinit dinit-rc \
+      linux linux-headers \
+      linux-firmware-amdgpu linux-firmware-whence \
+      amd-ucode \
+      networkmanager networkmanager-dinit \
+      neovim git curl wget bash-completion \
+      efibootmgr refind \
+      doas \
+      sudo; then
+    ok "Base system installed."
+    break
+  else
+    warn "basestrap attempt $attempt of $BASESTRAP_ATTEMPTS failed."
+    if [[ $attempt -lt $BASESTRAP_ATTEMPTS ]]; then
+      warn "Retrying in 5 seconds..."
+      sleep 5
+    else
+      die "basestrap failed after $BASESTRAP_ATTEMPTS attempts. Check your internet connection and mirrors."
+    fi
+  fi
+done
 
 # ── FSTAB ─────────────────────────────────────────────────────────────────────
 section "Generating fstab"
