@@ -29,7 +29,6 @@ SWAP_SIZE="8G"               # Swap partition size
                              # Root gets the remainder of the disk
 
 TARGET_HOSTNAME="artix-gaming"
-TIMEZONE="America/Chicago"   # e.g. Europe/London, Asia/Tokyo
 LOCALE="en_US.UTF-8"
 KEYMAP="us"
 
@@ -79,6 +78,21 @@ USERNAME="${USERNAME,,}"  # convert to lowercase
 [[ ${#USERNAME} -le 32 ]] || die "Username '${USERNAME}' is too long (max 32 chars)."
 ok "Username set: $USERNAME"
 
+# ── Timezone prompt
+while true; do
+  read -rp "Enter your timezone (e.g. America/New_York, Europe/London, Asia/Tokyo) [America/Chicago]: " TIMEZONE_INPUT
+  if [[ -z "$TIMEZONE_INPUT" ]]; then
+    TIMEZONE="America/Chicago"
+    break
+  elif [[ -f "/usr/share/zoneinfo/$TIMEZONE_INPUT" ]]; then
+    TIMEZONE="$TIMEZONE_INPUT"
+    break
+  else
+    warn "Timezone '$TIMEZONE_INPUT' not found under /usr/share/zoneinfo/. Please try again."
+  fi
+done
+ok "Timezone set: $TIMEZONE"
+
 # ── DISK SELECTION ────────────────────────────────────────────────────────────
 section "Disk Selection"
 
@@ -96,6 +110,26 @@ echo
 warn "THIS WILL ERASE ALL DATA ON $DISK"
 read -rp "Type YES to continue: " confirm
 [[ "$confirm" == "YES" ]] || die "Aborted."
+
+# ── PRE-PARTITION CLEANUP ─────────────────────────────────────────────────────
+section "Pre-partition cleanup"
+
+# Derive partition names from $DISK for cleanup (mirrors the partitioning section)
+if [[ "$DISK" == *nvme* || "$DISK" == *mmcblk* ]]; then
+  _CLEANUP_SWAP="${DISK}p2"
+else
+  _CLEANUP_SWAP="${DISK}2"
+fi
+
+info "Checking for active swap on $_CLEANUP_SWAP..."
+swapoff "$_CLEANUP_SWAP" 2>/dev/null || true
+
+if mountpoint -q /mnt 2>/dev/null; then
+  info "Unmounting /mnt recursively..."
+  umount -R /mnt || true
+fi
+
+ok "Pre-partition cleanup complete."
 
 # ── PARTITIONING ──────────────────────────────────────────────────────────────
 section "Partitioning $DISK"
@@ -168,17 +202,28 @@ section "Installing base system (basestrap)"
 
 info "This may take a few minutes..."
 
-basestrap /mnt \
-  base base-devel \
-  dinit dinit-rc \
-  linux linux-headers \
-  linux-firmware-amdgpu linux-firmware-whence \
-  amd-ucode \
-  networkmanager networkmanager-dinit \
-  neovim git curl wget bash-completion \
-  efibootmgr refind \
-  doas \
-  sudo
+BASESTRAP_OK=false
+for attempt in 1 2 3; do
+  if basestrap /mnt \
+    base base-devel \
+    dinit dinit-rc \
+    linux linux-headers \
+    linux-firmware-amdgpu linux-firmware-whence \
+    amd-ucode \
+    networkmanager networkmanager-dinit \
+    neovim git curl wget bash-completion \
+    efibootmgr refind \
+    doas \
+    sudo; then
+    BASESTRAP_OK=true
+    break
+  fi
+  if [[ $attempt -lt 3 ]]; then
+    warn "basestrap failed (attempt $attempt/3), retrying in 5s…"
+    sleep 5
+  fi
+done
+$BASESTRAP_OK || die "basestrap failed after 3 attempts. Check your internet connection and try again."
 
 ok "Base system installed."
 
